@@ -1,0 +1,17 @@
+/node_modules
+/public/uploads/
+/public/media/
+/public/assets/**/*.scss
+/public/assets/**/*.png
+/public/assets/**/*.jpg
+/public/assets/**/*.jpeg
+/public/assets/**/*.gif
+/public/assets/**/*.webp
+/public/flag_icons
+/public/storage
+*.sql
+/storage/*.key
+/vendor
+.env
+.zip
+/*.zip

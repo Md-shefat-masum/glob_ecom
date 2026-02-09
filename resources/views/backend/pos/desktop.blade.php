@@ -1,0 +1,1177 @@
+@extends('backend.master')
+
+@section('header_css')
+    <link rel="stylesheet" href="/assets/plugins/select2/select2.min.css">
+    <style>
+        .pos-page {
+            font-family: Arial, Helvetica, sans-serif;
+            padding: 12px;
+            box-sizing: border-box;
+        }
+
+        .pos-top {
+            display: flex;
+            gap: 12px;
+        }
+
+        .pos-left {
+            flex: 1;
+            background: #fff;
+            padding: 12px;
+            border-radius: 6px;
+            box-shadow: 0 1px 4px rgba(15, 34, 58, 0.08);
+            position: relative;
+        }
+
+        .pos-right {
+            width: 420px;
+            background: #fff;
+            padding: 12px;
+            border-radius: 6px;
+            box-shadow: 0 1px 4px rgba(15, 34, 58, 0.08);
+        }
+
+        .pos-search-row {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 10px;
+        }
+
+        .pos-search-row input {
+            flex: 1;
+            padding: 8px 10px;
+            border-radius: 4px;
+            border: 1px solid #dee2e6;
+        }
+
+        .pos-search-row button {
+            padding: 8px 10px;
+            border-radius: 4px;
+            border: none;
+            cursor: pointer;
+            background: #ff9f43;
+            color: #fff;
+        }
+
+        .pos-warehouse-row {
+            align-items: center;
+            gap: 8px;
+        }
+
+        .pos-warehouse-row label {
+            margin: 0;
+            font-weight: 600;
+            font-size: 13px;
+        }
+
+        .pos-warehouse-row select {
+            min-width: 220px;
+            padding: 6px 8px;
+            border-radius: 4px;
+            border: 1px solid #dee2e6;
+        }
+
+        .pos-filters {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 10px;
+        }
+
+        .pos-filters select {
+            flex: 1;
+            padding: 6px 8px;
+            border-radius: 4px;
+            border: 1px solid #dee2e6;
+        }
+
+        .pos-products-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(130px, 133px));
+            gap: 10px;
+        }
+
+        .pos-product-card {
+            border-radius: 8px;
+            border: 1px solid #f1f3f5;
+            background: #fff;
+            padding: 8px;
+            display: flex;
+            flex-direction: column;
+            cursor: pointer;
+            transition: box-shadow 0.2s ease, transform 0.1s ease;
+        }
+
+        .pos-product-card:hover {
+            box-shadow: 0 6px 16px rgba(15, 34, 58, 0.12);
+            transform: translateY(-1px);
+        }
+
+        .pos-product-thumb {
+            width: 100%;
+            height: 120px;
+            object-fit: cover;
+            object-position: top center;
+            border-radius: 6px;
+            margin-bottom: 6px;
+        }
+
+        .pos-product-name {
+            font-size: 13px;
+            font-weight: 600;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .pos-product-meta {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-top: 4px;
+            font-size: 12px;
+        }
+
+        .pos-product-price {
+            font-weight: 700;
+            color: #28a745;
+        }
+
+        .pos-product-add {
+            margin-left: auto;
+            padding: 4px 8px;
+            border-radius: 4px;
+            border: none;
+            font-size: 11px;
+            background: #4a90e2;
+            color: #fff;
+            cursor: pointer;
+        }
+
+        .pos-pagination {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 8px;
+            margin-top: 10px;
+        }
+
+        .pos-search-dropdown {
+            position: absolute;
+            top: 70px;
+            left: 12px;
+            right: 12px;
+            background: #fff;
+            border: 1px solid #dee2e6;
+            border-radius: 6px;
+            box-shadow: 0 6px 20px rgba(15, 34, 58, 0.18);
+            
+            z-index: 90;
+        }
+
+        .pos-search-dropdown .items{
+            max-height: 360px;
+            overflow-y: auto;
+        }
+
+        .pos-search-dropdown-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 7px 10px;
+            border-bottom: 1px solid #f1f3f5;
+            font-size: 12px;
+        }
+
+        .pos-search-dropdown-item:last-child {
+            border-bottom: none;
+        }
+
+        .pos-dd-thumb {
+            width: 40px;
+            height: 40px;
+            object-fit: cover;
+            border-radius: 4px;
+        }
+
+        .pos-dd-title {
+            font-weight: 600;
+        }
+
+        .pos-dd-sub {
+            color: #6c757d;
+        }
+
+        .pos-dd-actions button {
+            padding: 4px 8px;
+            border-radius: 4px;
+            border: none;
+            font-size: 11px;
+            background: #4a90e2;
+            color: #fff;
+            cursor: pointer;
+        }
+
+        .pos-cart-title {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+
+        .pos-cart-title h4 {
+            margin: 0;
+            font-size: 16px;
+            font-weight: 700;
+        }
+
+        .pos-cart-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 12px;
+            margin-bottom: 10px;
+            table-layout: fixed;
+        }
+
+        .pos-cart-table th,
+        .pos-cart-table td {
+            padding: 6px;
+            border-bottom: 1px solid #f1f3f5;
+            text-align: left;
+        }
+
+        .pos-cart-thumb {
+            width: 32px;
+            height: 32px;
+            object-fit: cover;
+            border-radius: 4px;
+            margin-right: 4px;
+        }
+
+        .pos-cart-item-cell {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .pos-cart-item-title {
+            font-size: 12px;
+            font-weight: 600;
+        }
+
+        .pos-cart-item-title-ellipsis {
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .pos-cart-input {
+            width: 60px;
+            padding: 4px;
+            border-radius: 4px;
+            border: 1px solid #dee2e6;
+            text-align: right;
+        }
+
+        .pos-totals {
+            padding-top: 6px;
+            border-top: 1px dashed #dee2e6;
+            font-size: 12px;
+        }
+
+        .pos-totals-row {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 4px;
+        }
+
+        .pos-totals-grand {
+            margin-top: 6px;
+            padding-top: 6px;
+            border-top: 1px solid #ced4da;
+            font-weight: 700;
+            font-size: 14px;
+        }
+
+        .pos-down {
+            margin-top: 12px;
+            display: flex;
+            justify-content: space-between;
+            gap: 12px;
+        }
+
+        .pos-customer-area {
+            flex: 1;
+            background: #fff;
+            padding: 12px;
+            border-radius: 6px;
+            box-shadow: 0 1px 4px rgba(15, 34, 58, 0.08);
+        }
+
+        .pos-actions {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .pos-actions-row button {
+            width: 100%;
+            padding: 8px 12px;
+            border-radius: 4px;
+            border: none;
+            cursor: pointer;
+            font-size: 13px;
+            font-weight: 600;
+        }
+
+        .pos-actions-row {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 8px;
+        }
+
+        .pos-save-wrap {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .pos-draft-hint {
+            font-size: 11px;
+            color: #495057;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .pos-draft-hint a {
+            color: #0d6efd;
+            text-decoration: underline;
+        }
+
+        .pos-note-input textarea {
+            resize: vertical;
+        }
+
+        .pos-btn-save {
+            background: #17a2b8;
+            color: #fff;
+        }
+
+        .pos-btn-hold {
+            background: #ffc107;
+            color: #212529;
+        }
+
+        .pos-btn-cancel {
+            background: #e0e0e0;
+            color: #212529;
+        }
+
+        .pos-btn-create {
+            background: #28a745;
+            color: #fff;
+        }
+
+        .pos-modal-backdrop {
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.45);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 999;
+        }
+
+        .pos-modal {
+            width: 760px;
+            max-width: 100%;
+            background: #fff;
+            border-radius: 8px;
+            padding: 16px;
+            box-shadow: 0 8px 30px rgba(15, 34, 58, 0.35);
+        }
+
+        .pos-modal-header h3 {
+            margin: 0;
+            font-size: 18px;
+        }
+
+        .pos-modal-body {
+            margin-top: 10px;
+            font-size: 13px;
+        }
+
+        .pos-payment-methods {
+            display: grid;
+            /* grid-template-columns: repeat(2, minmax(0, 1fr)); */
+            gap: 15px;
+        }
+
+        .pos-payment-row {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+
+            label{
+                margin: 0;
+                width: 100px;
+            }
+        }
+
+        .pos-payment-row input[type="number"] {
+            flex: 1;
+            padding: 4px 6px;
+            border-radius: 4px;
+            border: 1px solid #dee2e6;
+        }
+
+        .pos-modal-footer {
+            margin-top: 12px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .pos-modal-footer-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .pos-modal-footer-row button {
+            padding: 6px 10px;
+            border-radius: 4px;
+            border: none;
+            cursor: pointer;
+            font-size: 12px;
+            font-weight: 600;
+        }
+
+        .pos-modal-footer-row .btn-secondary {
+            background: #6c757d;
+            color: #fff;
+        }
+
+        .pos-modal-footer-row .btn-primary {
+            background: #4a90e2;
+            color: #fff;
+        }
+
+        .pos-modal-footer-row .btn-success {
+            background: #28a745;
+            color: #fff;
+        }
+
+        .product_list_wrapper {
+            height: calc(100% - 90px);
+            overflow-y: auto;
+        }
+
+        .cart_list_wrapper {
+            max-height: 400px;
+            overflow-y: auto;
+        }
+
+        /* Loading Overlay Styles */
+        .pos-loading-overlay {
+            position: absolute;
+            inset: 0;
+            background: rgba(255, 255, 255, 0.85);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 100;
+            border-radius: 6px;
+        }
+
+        .pos-loading-spinner {
+            width: 40px;
+            height: 40px;
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #4a90e2;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .pos-loading-text {
+            margin-top: 10px;
+            font-size: 13px;
+            color: #495057;
+            text-align: center;
+        }
+
+        .pos-loading-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        /* Button loading state */
+        .pos-btn-loading {
+            opacity: 0.6;
+            cursor: not-allowed;
+            position: relative;
+        }
+
+        .pos-btn-loading::after {
+            content: '';
+            position: absolute;
+            width: 16px;
+            height: 16px;
+            top: 50%;
+            left: 50%;
+            margin-left: -8px;
+            margin-top: -8px;
+            border: 2px solid #fff;
+            border-top-color: transparent;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+
+        /* Search loading */
+        .pos-search-loading {
+            position: relative;
+        }
+
+        .pos-search-loading::after {
+            content: '';
+            position: absolute;
+            right: 50px;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 16px;
+            height: 16px;
+            border: 2px solid #6c757d;
+            border-top-color: transparent;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+
+        /* Product grid loading skeleton */
+        .pos-product-skeleton {
+            border-radius: 8px;
+            border: 1px solid #f1f3f5;
+            background: #fff;
+            padding: 8px;
+            height: 180px;
+            background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+            background-size: 200% 100%;
+            animation: loading 1.5s ease-in-out infinite;
+        }
+
+        .pos-cart-item-variant {
+            font-size: 10px;
+            color: #6c757d;
+            margin-top: 4px;
+            font-weight: 400;
+        }
+
+        @keyframes loading {
+            0% { background-position: 200% 0; }
+            100% { background-position: -200% 0; }
+        }
+
+        /* Inline loading indicator */
+        .pos-inline-loading {
+            display: inline-block;
+            width: 14px;
+            height: 14px;
+            border: 2px solid #6c757d;
+            border-top-color: transparent;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+            margin-left: 6px;
+            vertical-align: middle;
+        }
+
+        .pos_header{
+            background: #fff;
+            padding: 5px;
+            border-radius: 6px;
+            box-shadow: 0 1px 4px rgba(15, 34, 58, 0.08);
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 10px;
+        }
+        div:where(.swal2-container){
+            z-index: 9999 !important;
+        }
+        #page-topbar{
+            display: none;
+        }
+        #page-topbar.pos_header{
+            display: block;
+            .navbar-header{
+                border: none;
+            }
+        }
+    </style>
+@endsection
+
+@section('header_js')
+    <script src="{{ versioned_asset('assets/js/vue.min.js') }}"></script>
+    <script>
+        window.POS_DESKTOP_CONFIG = {
+            routes: {
+                search: "{{ route('pos.desktop.search') }}",
+                products: "{{ route('pos.desktop.products') }}",
+                categories: "{{ route('pos.desktop.categories') }}",
+                nestedCategories: "{{ route('pos.categories') }}",
+                barcode: "{{ route('pos.desktop.barcode') }}",
+                addToCart: "{{ route('pos.desktop.add-to-cart') }}",
+                hold: "{{ route('pos.desktop.hold') }}",
+                getHold: "{{ route('pos.desktop.get-hold', ['id' => '__ID__']) }}",
+                customerSearch: "{{ route('pos.desktop.customer.search') }}",
+                customerCreate: "{{ route('pos.desktop.customer.create') }}",
+                applyCoupon: "{{ route('pos.desktop.apply-coupon') }}",
+                calculateTotals: "{{ route('pos.desktop.calculate-totals') }}",
+                createOrder: "{{ route('pos.desktop.create-order') }}",
+                preview: "{{ route('pos.desktop.preview') }}",
+                print: "{{ route('pos.desktop.print', ['slug' => '__SLUG__']) }}",
+                holds: "{{ route('pos.desktop.holds') }}",
+                paymentMethods: "{{ route('pos.get-payment-methods') }}",
+                invoiceUrlBase: "{{ route('order.invoice', ['slug' => '__SLUG__']) }}",
+                targetStats: "{{ route('pos.desktop.target-stats') }}",
+                productsByBarcode: "{{ route('pos.desktop.products-by-barcode') }}",
+            },
+            warehouses: @json($warehouses ?? []),
+            image_url: "{{env('IMAGE_URL')}}",
+        };
+        document.addEventListener('DOMContentLoaded', function() {
+            document.body.classList.add('lg_hide_menu');
+        });
+    </script>
+    <script src="/assets/plugins/select2/select2.min.js" defer></script>
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <script src="{{ versioned_asset('assets/js/pos_order_vue.js') }}?v={{ time().'_'. env('APP_VERSION', time()) }}" defer></script>
+    <script src="{{ versioned_asset('assets/js/pos/pos_left_categories.js') }}?v={{time().'_'. env('APP_VERSION', time()) }}" defer></script>
+    <script src="{{ versioned_asset('assets/js/pos/pos_product_item.js') }}?v={{time().'_'. env('APP_VERSION', time()) }}" defer></script>
+    <script src="{{ versioned_asset('assets/js/pos/pos_customer_manage.js') }}?v={{time().'_'. env('APP_VERSION', time()) }}" defer></script>
+    <script src="{{ versioned_asset('assets/js/pos/pos_clock.js') }}?v={{time().'_'. env('APP_VERSION', time()) }}" defer></script>
+@endsection
+
+@section('page_title')
+    POS Order
+@endsection
+
+@section('page_heading')
+    POS Order
+@endsection
+
+@section('content')
+    <div id="pos-desktop-app" class="pos_page">
+        <header id="page-topbar" class="pos_header">
+            <div class="navbar-header">
+                <div class="d-flex align-items-center">
+                    <button type="button" class="btn btn-sm mr-2 d-lg-none header-item" id="vertical-menu-btn">
+                        <i class="fa fa-fw fa-bars"></i>
+                    </button>
+
+                    <button type="button" class="btn btn-sm mr-2 d-none d-lg-block header-item" onclick="$('body').toggleClass('lg_hide_menu')" id="lg_menu_toggler">
+                        <i class="fa fa-fw fa-bars"></i>
+                    </button>
+                    <div class="pos-target-stats d-flex flex-wrap align-items-center ml-2" style="gap: 8px;">
+                        <template v-if="targetStats">
+                            <div class="pos-target-stat-card border rounded px-2 py-1" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: #fff; min-width: 90px;">
+                                <small class="d-block" style="opacity: .9;">Target</small>
+                                <strong>@{{ formatMoney(targetStats.total_targets) }}</strong>
+                            </div>
+                            <div class="pos-target-stat-card border rounded px-2 py-1" style="background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%); color: #fff; min-width: 90px;">
+                                <small class="d-block" style="opacity: .9;">Sales</small>
+                                <strong>@{{ formatMoney(targetStats.sales) }}</strong>
+                            </div>
+                            <div class="pos-target-stat-card border rounded px-2 py-1" style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); color: #fff; min-width: 90px;">
+                                <small class="d-block" style="opacity: .9;">Remains</small>
+                                <strong>@{{ formatMoney(targetStats.remains) }}</strong>
+                            </div>
+                            <div class="pos-target-stat-card border rounded px-2 py-1" style="background: linear-gradient(135deg, #fa709a 0%, #fee140 100%); color: #1a1a1a; min-width: 90px;">
+                                <small class="d-block" style="opacity: .85;">Achieve %</small>
+                                <strong>@{{ targetStats.achieve_percent }}%</strong>
+                            </div>
+                        </template>
+                    </div>
+                    <div class="pl-2">
+                        <pos-clock></pos-clock>
+                    </div>
+                </div>
+                <div class="d-flex align-items-center">
+                    <div class="dropdown d-inline-block ml-2">
+                        <button type="button" class="btn header-item" id="page-header-user-dropdown" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                            <img class="rounded-circle header-profile-user" src="https://control-panel.comfiloom.com/assets/images/users/avatar-1.jpg?v=2.89" alt="Header Avatar">
+                            <span class="d-none d-sm-inline-block ml-1"> emon khan
+                                                                </span>
+                            <i class="mdi mdi-chevron-down d-none d-sm-inline-block"></i>
+                        </button>
+                        <div class="dropdown-menu dropdown-menu-right">
+                            
+                            <a class="dropdown-item d-flex align-items-center justify-content-between" href="https://control-panel.comfiloom.com/change/password/page">
+                                <span class="d-none d-sm-inline-block"><i class="fas fa-key"></i>
+                                    Change Password
+                                </span>
+                            </a>
+                            <a href="https://control-panel.comfiloom.com/logout" class="dropdown-item d-flex align-items-center justify-content-between logout" onclick="event.preventDefault(); document.getElementById('logout-form').submit();">
+                                <span class="d-none d-sm-inline-block">
+                                    <i class="fas fa-sign-out-alt"></i>
+                                    Logout
+                                </span>
+                            </a>
+
+                            <form id="logout-form" action="https://control-panel.comfiloom.com/logout" method="POST" class="d-none">
+                                <input type="hidden" name="_token" value="s1RZAOCVZv3KeX1xxxwVZrAT6lqsj2kZ6TXakqiC">                                </form>
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+        </header>
+        <div class="pos-page" v-cloak>
+            <!-- Warehouse selection -->
+            <div class="pos_header">
+                <div class="pos-warehouse-row">
+                    <div>
+                        <label for="pos-warehouse">Warehouse</label>
+                    </div>
+                    <div>
+                        <select id="pos-warehouse" v-model="selectedWarehouseId" @change="onWarehouseChange">
+                            <option :value="null">All Warehouses</option>
+                            <option v-for="w in warehouses" :key="w.id" :value="w.id">
+                                @{{ w.title }}
+                            </option>
+                        </select>
+                    </div>
+                </div>
+                
+            </div>
+
+            <div class="pos-top">
+                <pos-left-categories 
+                    :selected_category_type="selected_category_type" 
+                    :selected_category_id="selected_category_id" 
+                    :setSelectedCategory="setSelectedCategory"
+                >
+                </pos-left-categories>
+
+                <!-- LEFT: products & search -->
+                <div class="pos-left">
+                    <div class="pos-search-row">
+                        <div style="flex: 1;">
+                            <input type="text" v-model="searchQuery" @input="onSearchInput"
+                                :class="{ 'pos-search-loading': loading.search }"
+                                class="w-100"
+                                placeholder="Search product by name" ref="searchInput">
+                        </div>
+                        <div style="width: 200px;">
+                            <input type="text" class="w-100" placeholder="Search product by barcode" @focus="clear_value_for_barcode($event)" v-model="barcodeQuery" @input="onBarcodeInput">
+                        </div>
+                    </div>
+
+                    <div class="product_list_wrapper" style="position: relative;">
+                        <div class="pos-loading-overlay" v-if="loading.products">
+                            <div class="pos-loading-container">
+                                <div class="pos-loading-spinner"></div>
+                                <div class="pos-loading-text">Loading products...</div>
+                            </div>
+                        </div>
+                        <div class="pos-products-grid">
+                            
+                            <pos-product-item 
+                                v-for="p in products" :key="p.id" :p="p" 
+                                :formatMoney="formatMoney" 
+                                :product-item-select="selectProduct"
+                            ></pos-product-item>
+                            
+                            <template v-if="loading.products && products.length === 0">
+                                <div class="pos-product-skeleton" v-for="n in 12" :key="'skeleton-' + n"></div>
+                            </template>
+                        </div>
+                    </div>
+
+                    <div class="pos-pagination">
+                        <button type="button" class="btn btn-sm btn-light" @click="prevPage" :disabled="page === 1">
+                            Prev
+                        </button>
+                        <span>Page @{{ page }}</span>
+                        <button type="button" class="btn btn-sm btn-light" @click="nextPage" :disabled="!hasMore">
+                            Next
+                        </button>
+                    </div>
+
+                    <!-- Search dropdown -->
+                    <div class="pos-search-dropdown" v-if="showSearchDropdown">
+                        <div class="items">
+                            <div v-if="loading.search" class="p-3 text-center">
+                                <div class="pos-loading-spinner" style="margin: 0 auto;"></div>
+                                <div class="pos-loading-text">Searching...</div>
+                            </div>
+                            <div v-else class="pos-search-dropdown-item" v-for="r in searchResults" :key="r.id">
+                                <img :src="r.image_url" class="pos-dd-thumb" alt="">
+                                <div>
+                                    <div class="pos-dd-title">@{{ r.title || r.name }}</div>
+                                    <div class="pos-dd-sub">
+                                        @{{ r.barcode ? 'Barcode: ' + r.barcode : '' }}
+                                        <span v-if="r.stock !== undefined"> · Stock: @{{ r.stock }}</span>
+                                    </div>
+                                </div>
+                                <div class="pos-dd-actions ml-auto">
+                                    <button type="button" @click="onAddFromSearch(r)">Add</button>
+                                </div>
+                            </div>
+                            <div v-if="!loading.search && searchResults.length === 0" class="p-3 text-center text-muted">
+                                No results found
+                            </div>
+                        </div>
+                        <div class="p-2 text-right">
+                            <button type="button" class="btn btn-sm btn-light" @click="closeSearch">Close</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- RIGHT: cart -->
+                <div class="pos-right" style="display: flex; flex-direction: column; gap: 10px; justify-content: space-between;">
+                    <div>
+                        <div>
+                            <pos-customer-manage
+                                :set-selected-customer="setSelectedCustomer"
+                            ></pos-customer-manage>
+                        </div>
+                        
+                        <div class="pos-cart-title">
+                            <h4>Order List</h4>
+                        </div>
+    
+                        <div class="cart_list_wrapper">
+                            <table class="pos-cart-table">
+                                <thead>
+                                    <tr>
+                                        <th>Item</th>
+                                        <th>Qty</th>
+                                        <th>Unit</th>
+                                        <th>Disc (%)</th>
+                                        <th>Disc (Tk)</th>
+                                        <th>Total</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <template v-for="(it, index) in cart" :key="it.temp_id">
+                                        <!-- First row: image + name -->
+                                        <tr>
+                                            <td colspan="6">
+                                                <div class="pos-cart-item-cell">
+                                                    <img :src="it.image_url" class="pos-cart-thumb" alt="">
+                                                    <div class="pos-cart-item-title pos-cart-item-title-ellipsis" style="flex: 1;"
+                                                        :title="it.title">
+                                                        <div style="display: flex; justify-content: space-between;">
+                                                            <div>
+                                                                @{{ it.title }}
+                                                            </div>
+                                                            <div>
+                                                                <i class="feather-trash-2" style="cursor: pointer; color: red; font-size: 12px;" @click="removeItem(it)"></i>
+                                                            </div>
+                                                        </div>
+                                                        <div class="pos-cart-item-variant" v-if="it.variant_combination_key">
+                                                            <span>
+                                                                @{{ it.variant_combination_key }} 
+                                                            </span>
+                                                            <span>
+                                                                (avl: @{{ it.max_qty }})
+                                                            </span>
+                                                            <span v-if="it.warehouse_name" style="background: #f0f0f0; padding: 2px 4px; border-radius: 4px;">
+                                                                <span>
+                                                                    @{{ it.warehouse_name }}
+                                                                </span>
+                                                                <span v-if="it.room_name">, </span>
+                                                                <span>
+                                                                    @{{ it.room_name }}
+                                                                </span>
+                                                                <span v-if="it.cartoon_name">, </span>
+                                                                <span>
+                                                                    @{{ it.cartoon_name }}
+                                                                </span>
+                                                            </span>
+                                                            <span :style="'border: 1px solid #' + randomHex(it.unit_code || it.temp_id) + '; color: black; padding: 2px 4px; border-radius: 4px;'">
+                                                                @{{ it.unit_code }}
+                                                            </span>
+                                                        </div>
+                                                        <div class="pos-cart-item-variant" v-if="!it.variant_combination_key">
+                                                            Avl: @{{ it.max_qty }}
+                                                            <span v-if="it.warehouse_name" style="background: #f0f0f0; padding: 2px 4px; border-radius: 4px;">
+                                                                <span>
+                                                                    @{{ it.warehouse_name }}
+                                                                </span>
+                                                                <span v-if="it.room_name">, </span>
+                                                                <span>
+                                                                    @{{ it.room_name }}
+                                                                </span>
+                                                                <span v-if="it.cartoon_name">, </span>
+                                                                <span>
+                                                                    @{{ it.cartoon_name }}
+                                                                </span>
+                                                            </span>
+                                                            <span :style="'border: 1px solid #' + randomHex(it.unit_code || it.temp_id) + '; color: black; padding: 2px 4px; border-radius: 4px;'">
+                                                                @{{ it.unit_code }}
+                                                            </span>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                        <!-- Second row: quantity, prices, discounts, total -->
+                                        <tr>
+                                            <td></td>
+                                            <td>
+                                                <input 
+                                                    :disabled="it.unit_code" 
+                                                    :readonly="it.unit_code"
+                                                    :title="it.unit_code ? 'can not change quantity for barcode product' : ''"
+                                                    type="text" class="pos-cart-input" :value="it.qty"
+                                                    @focus="$event.target.select()"
+                                                    @keyup.up.prevent="incrementValue($event, 'qty', it)"
+                                                    @keyup.down.prevent="decrementValue($event, 'qty', it)"
+                                                    @input="updateCartValue($event, 'qty', it)"
+                                                    @blur="recalcItem(it)">
+                                            </td>
+                                            <td>
+                                                <input type="text" class="pos-cart-input"
+                                                    :value="it.unit_price"
+                                                    @focus="$event.target.select()"
+                                                    @keyup.up.prevent="incrementValue($event, 'unit_price', it)"
+                                                    @keyup.down.prevent="decrementValue($event, 'unit_price', it)"
+                                                    @input="updateCartValue($event, 'unit_price', it)"
+                                                    @blur="recalcItem(it)">
+                                            </td>
+                                            <td>
+                                                <input type="text" class="pos-cart-input"
+                                                    :value="it.discount.percent"
+                                                    @focus="$event.target.select()"
+                                                    @keyup.up.prevent="incrementValue($event, 'discount.percent', it)"
+                                                    @keyup.down.prevent="decrementValue($event, 'discount.percent', it)"
+                                                    @input="updateDiscountValue($event, 'percent', it)"
+                                                    @blur="onItemDiscountChange(it, 'percent')">
+                                            </td>
+                                            <td>
+                                                <input type="text" class="pos-cart-input"
+                                                    :value="it.discount.fixed"
+                                                    @focus="$event.target.select()"
+                                                    @keyup.up.prevent="incrementValue($event, 'discount.fixed', it)"
+                                                    @keyup.down.prevent="decrementValue($event, 'discount.fixed', it)"
+                                                    @input="updateDiscountValue($event, 'fixed', it)"
+                                                    @blur="onItemDiscountChange(it, 'fixed')">
+                                            </td>
+                                            <td>@{{ formatMoney(it.final_price) }}</td>
+                                        </tr>
+                                    </template>
+                                    <tr v-if="cart.length === 0">
+                                        <td colspan="6" class="text-center text-muted">Cart is empty</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+    
+                        <div class="pos-totals">
+                            <div class="pos-totals-row">
+                                <span>Subtotal</span>
+                                <span>@{{ formatMoney(totals.subtotal) }}</span>
+                            </div>
+                            <div class="pos-totals-row">
+                                <div>
+                                    <span>Discount</span>
+                                    <label class="mr-2" for="discount_type_fixed">
+                                        <input type="radio" name="discount_type" value="fixed" id="discount_type_fixed" v-model="totals.discount.type" @change="recalcTotals">
+                                        <span>Fixed</span>
+                                    </label>
+                                    <label for="discount_type_percent" class="mr-2">
+                                        <input type="radio" name="discount_type" value="percent" id="discount_type_percent" v-model="totals.discount.type" @change="recalcTotals">
+                                        <span>Percent</span>
+                                    </label>
+                                </div>
+                                <span>
+                                    <input type="text" class="pos-cart-input"
+                                        :value="totals.discount.value"
+                                        :placeholder="totals.discount.type === 'percent' ? '%' : '0'"
+                                        @focus="$event.target.select()"
+                                        @keyup.up.prevent="incrementValue($event, 'totals.discount.value', null)"
+                                        @keyup.down.prevent="decrementValue($event, 'totals.discount.value', null)"
+                                        @input="updateValue($event, 'totals.discount.value')">
+                                    <span class="text-muted ml-1">= @{{ formatMoney(totals.discount.amount || 0) }}</span>
+                                </span>
+                            </div>
+                            <div class="pos-totals-row">
+                                <span>
+                                    Coupon
+                                    <span v-if="totals.coupon.amount > 0 && totals.coupon.type">(@{{ totals.coupon.type === 'percent' ? 'per: ' + totals.coupon.percent + '%' : 'fix: ' + formatMoney(totals.coupon.value) }})</span>
+                                    <input type="text" v-model="coupon.code" style="width: 90px; margin-left: 4px;"
+                                        placeholder="Code" :disabled="loading.coupon">
+                                    <button type="button" class="btn btn-sm btn-light" @click="applyCoupon" 
+                                        :disabled="loading.coupon" :class="{ 'pos-btn-loading': loading.coupon }">
+                                        <span v-if="!loading.coupon">Apply</span>
+                                        <span v-else>Applying...</span>
+                                    </button>
+                                </span>
+                                <span>@{{ formatMoney(totals.coupon.amount || 0) }}</span>
+                            </div>
+                            <div class="pos-totals-row">
+                                <span>Extra Charge</span>
+                                <span>
+                                    <input type="text" class="pos-cart-input"
+                                        :value="extra_charge"
+                                        @focus="$event.target.select()"
+                                        @keyup.up.prevent="incrementValue($event, 'extra_charge', null)"
+                                        @keyup.down.prevent="decrementValue($event, 'extra_charge', null)"
+                                        @input="updateValue($event, 'extra_charge')"
+                                        @blur="recalcTotals">
+                                </span>
+                            </div>
+                            <div class="pos-totals-row">
+                                <span>Delivery Charge</span>
+                                <span>
+                                    <input type="text" class="pos-cart-input"
+                                        :value="delivery_charge"
+                                        @focus="$event.target.select()"
+                                        @keyup.up.prevent="incrementValue($event, 'delivery_charge', null)"
+                                        @keyup.down.prevent="decrementValue($event, 'delivery_charge', null)"
+                                        @input="updateValue($event, 'delivery_charge')"
+                                        @blur="recalcTotals">
+                                </span>
+                            </div>
+                            <div class="pos-totals-row">
+                                <span>Round Off</span>
+                                <span>
+                                    <input type="text" class="pos-cart-input"
+                                        :value="round_off"
+                                        @focus="$event.target.select()"
+                                        @keyup.up.prevent="incrementValue($event, 'round_off', null)"
+                                        @keyup.down.prevent="decrementValue($event, 'round_off', null)"
+                                        @input="updateValue($event, 'round_off')"
+                                        @blur="recalcTotals">
+                                </span>
+                            </div>
+                            <div class="pos-totals-row pos-totals-grand">
+                                <span>Grand Total</span>
+                                <span>@{{ formatMoney(totals.grand_total) }}</span>
+                            </div>
+                            
+                            <hr/>
+                            <div v-for="payment_mode in paymentMethods" :key="payment_mode.id" class="pos-totals-row">
+                                <span>
+                                    <b>@{{ payment_mode.title }}</b>
+                                </span>
+                                <span>
+                                    <input class="pos-cart-input"
+                                        type="text"
+                                        :value="payment_mode.amount"
+                                        :max="getPaymentMaxAmount(payment_mode)"
+                                        @focus="onPaymentFocus($event, payment_mode)"
+                                        @keyup.up.prevent="incrementPaymentValue($event, payment_mode)"
+                                        @keyup.down.prevent="decrementPaymentValue($event, payment_mode)"
+                                        @input="updatePaymentValue($event, payment_mode)">
+                                </span>
+                            </div>
+                            <div class="pos-totals-row pos-totals-grand">
+                                <span><b>Paid Amount</b></span>
+                                <span>@{{ formatMoney(paymentTotal) }}</span>
+                            </div>
+                            <div class="pos-totals-row pos-totals-grand">
+                                <span><b>Due Amount</b></span>
+                                <span>@{{ formatMoney(totals.grand_total - paymentTotal) }}</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="pos-actions">
+                        {{-- <div class="pos-actions-row">
+                            <div class="pos-save-wrap">
+                                <button type="button" class="pos-btn-save" @click="saveOrder">Save</button>
+                                <div class="pos-draft-hint" v-if="hasSavedDraft">
+                                    <small>Saved draft available.</small>
+                                    <a href="#" @click.prevent="restoreSavedOrder">Restore</a>
+                                </div>
+                            </div>
+                            <button type="button" class="pos-btn-hold" @click="holdOrder" 
+                                :disabled="loading.hold" :class="{ 'pos-btn-loading': loading.hold }">
+                                <span v-if="!loading.hold">Hold</span>
+                                <span v-else>Holding...</span>
+                            </button>
+                        </div>
+                        <div class="pos-actions-row">
+                            <button type="button" class="pos-btn-cancel" @click="cancelOrder">Cancel</button>
+                            <button type="button" class="pos-btn-create" @click="openHoldList" 
+                                :disabled="loading.holdList">Hold List</button>
+                        </div> --}}
+                        <div class="pos-actions-row">
+                        </div>
+                        <button type="button" class="btn btn-success w-100" @click="submitOrder"
+                            :disabled="loading.order" :class="{ 'pos-btn-loading': loading.order }">
+                            <span v-if="!loading.order">Submit Order</span>
+                            <span v-else>Processing...</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Hold list modal -->
+            <div class="pos-modal-backdrop" v-if="showHoldListModal">
+                <div class="pos-modal">
+                    <div class="pos-modal-header d-flex justify-content-between align-items-center">
+                        <h3>Hold Orders (@{{ selectedWarehouseName }})</h3>
+                        <button type="button" class="btn btn-sm btn-light" @click="closeHoldList">&times;</button>
+                    </div>
+                    <div class="pos-modal-body" style="position: relative;">
+                        <div class="pos-loading-overlay" v-if="loading.holdList">
+                            <div class="pos-loading-container">
+                                <div class="pos-loading-spinner"></div>
+                                <div class="pos-loading-text">Loading holds...</div>
+                            </div>
+                        </div>
+                        <table class="pos-cart-table">
+                            <thead>
+                                <tr>
+                                    <th>ID</th>
+                                    <th>Items</th>
+                                    <th>Total</th>
+                                    <th>Time</th>
+                                    <th></th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr v-for="h in holdList" :key="h.id">
+                                    <td>#@{{ h.id }}</td>
+                                    <td>@{{ h.items_count }}</td>
+                                    <td>@{{ formatMoney(h.grand_total) }}</td>
+                                    <td>@{{ h.created_at }}</td>
+                                    <td>
+                                        <button type="button" class="btn btn-sm btn-primary"
+                                            @click="loadHold(h.id)" :disabled="loading.hold"
+                                            :class="{ 'pos-btn-loading': loading.hold }">
+                                            <span v-if="!loading.hold">Load</span>
+                                            <span v-else>Loading...</span>
+                                        </button>
+                                    </td>
+                                </tr>
+                                <tr v-if="!loading.holdList && holdList.length === 0">
+                                    <td colspan="5" class="text-center text-muted">No holds found</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+@endsection
+
+@push('scripts')
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            if (window.innerWidth < 992) {
+                window.location.href = "{{ route('pos.desktop.mobile') }}";
+            }
+        });
+    </script>
+@endpush

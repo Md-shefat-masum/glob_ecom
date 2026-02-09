@@ -1,0 +1,50 @@
+Sales target management
+directory: dashboard/resources/views/backend/sr_management/sales_target
+route path: dashboard/routes/srRoutes.php
+
+routes: 
+
+a mini dashboard on top into all targets
+    top add a filter, range from date , to date, employee ( get the user who is present in user_sales_targets table)
+    get target analytics. and show in cards. 
+        total employee
+        total targets
+        sales
+        acheive percent
+    get data by ajax and set data. 
+
+    /sales-targets/analytics
+
+/sales-targets - all targets order by date desc
+    table columns:
+        date
+        employee (show user_name)
+        target fillup ( show percent )
+        target
+        completed
+        remain
+        is_evaluated
+        action
+
+create single form for manage both create and update include form into the blades.
+    /sales-targets/create
+        form:
+            select employee - use a searchable ajax select2 return each time users limit 10
+                create an api /sales-targets/users-list
+            date
+            target (count number min 0)
+
+    /sales-targets/{id}/edit
+        form:
+            select employee - use a searchable ajax select2 return each time users limit 10
+                create an api /sales-targets/users-list
+            date
+            target (count number min 0)
+            completed
+            remain
+            is_evaluated
+
+/sales-targets/{id} - show target details.
+
+post: /sales-targets/store - store data
+psot: /sales-targets/update - update data

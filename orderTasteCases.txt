@@ -1,0 +1,16 @@
+. validate reqeuest data
+. first organize data for inset into product_orders and product_order_products
+. create order on product_orders
+. set data into product_order_products
+
+. if order statust = invoiced or delivered  then
+    . insert log into product_stock_logs if order statust = invoiced or delivered
+    . sum close stock and update product_stocks mapping is has_varinant 0 | 1
+    . set product.availability_status = in_stock | out_stock
+
+. create commong method which will update stock by (product_id, event_name, event_id) track single and variant stock automatically.
+    . we have into product_stock_logs table
+        product_sales_id bigint(20) UN 
+        product_purchase_id bigint(20) UN 
+        product_return_id bigint(20) UN
+    . so first have to check if event is exist then apply action. if not exist then insert ine stock log. else jus update sum

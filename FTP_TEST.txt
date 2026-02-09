@@ -1,0 +1,62 @@
+investor_mangement
+
+route: dashboard/routes/accountRoutes.php line 72
+controller: dashboard/app/Http/Controllers/Account/InvestorController
+
+create steps:
+table: users
+
+create form:
+name,
+email,
+phone,
+address,
+image ( size: 200x200, use component: dashboard/resources/views/backend/components/image_upload_v2.blade.php)
+user_tpye = 5 (set in controller fixed for investor)
+store_id ( auth()->user()->store_id )
+
+password ( show eye icon show and hide toggle type ( text | password))
+confirm_password  ( client side validation for password matched)
+
+oncreate in controller:
+    create user first
+    create an account head
+        $investorAccount = AcAccount::create([
+            'store_id' => $user->store_id ?? null,
+            'account_type' => 'equity',
+            'parent_id' => 15,
+            'normal_balance' => 'credit',
+            'account_name' => $investorAccountName,
+            'account_selection_name' => $investorAccountName,
+            'note' => $investorNote,
+            'balance' => 0.0000,
+            'status' => 'active',
+            'creator' => $user->id,
+            'slug' => Str::slug($investorAccountName) . '-' . time(),
+            'short_code' => $newShortCode,
+            'account_code' => $accountCode,
+            'created_at' => Carbon::now('Asia/Dhaka'),
+            'updated_at' => Carbon::now('Asia/Dhaka')
+        ]);
+
+script:
+use vue2 cdn and axios
+
+controller:
+api request validation required all except image,
+
+all list page:
+image, name, phone, 
+deposits (sum of ac_moneydeposits->amount investor_id = user->id)
+withdraws (sum of ac_money_withdraws->amount investor_id = user->id)
+balance ( substrace diposits and withdraws )
+
+details page:
+investor details from users table
+
+invest and withdraws, print table
+deposits table by id desc -> print button deposits invoice print
+withdraws table by id desc -> print button withdraws invoice print
+
+edit page:
+update user info same as create form.

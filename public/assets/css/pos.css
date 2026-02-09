@@ -1,0 +1,75 @@
+.select2-selection {
+    height: 34px !important;
+    border: 1px solid #ced4da !important;
+}
+
+.select2 {
+    width: 100% !important;
+}
+
+.select2-container--default .select2-selection--single .select2-selection__rendered {
+    line-height: 32px;
+}
+
+.address_box {
+    border: 1px solid #9cbedf;
+    border-radius: 8px;
+    padding: 5px 12px;
+    box-shadow: inset 1px 1px 3px #57575747;
+    cursor: pointer;
+    min-height: 82px;
+}
+.address_box label {
+    cursor: pointer;
+}
+
+/* live search css start */
+ul.live_search{
+    padding: 0px;
+}
+ul.live_search li.live_search_item{
+    position: relative;
+    list-style: none;
+    border: 1px solid #cecece;
+    border-radius: 4px;
+    margin-bottom: 5px;
+    display: flex;
+    background: #f1f1f1;
+}
+ul.live_search li.live_search_item img{
+    height: 60px;
+    width: 60px;
+    border-radius: 4px 0px 0px 4px;
+    margin-right: 5px
+}
+ul.live_search li.live_search_item h6.live_search_product_title{
+    margin-bottom: 0px;
+    margin-top: 2px;
+    color: navy;
+}
+ul.live_search li.live_search_item h6 span.live_search_product_name{
+    margin-bottom: 4px
+}
+ul.live_search li.live_search_item a.add_to_cart_btn{
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    padding: 8px;
+    background: green;
+    height: 36px;
+    width: 36px;
+    border-radius: 4px;
+    font-size: 16px;
+    color: white;
+    line-height: 21px;
+}
+
+ul.live_search li.live_search_item a.stock_out{
+    color: red;
+    font-size: 14px;
+    width: 65px;
+    background: transparent;
+    padding: 0px;
+    top: 18px;
+}
+/* live search css end */
