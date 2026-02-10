@@ -56,9 +56,9 @@
                 <!-- LOGO -->
                 <div class="navbar-brand-box">
                     <a href="{{ url('/home') }}" class="logo mt-2" style="display: inline-block;">
-                        @if ($generalInfo->logo != '' && $generalInfo->logo != null && file_exists(public_path($generalInfo->logo)))
+                        @if ($generalInfo->logo != '' && $generalInfo->logo != null)
                             <span>
-                                <img src="{{ url($generalInfo->logo) }}" alt="" class="img-fluid"
+                                <img src="{{ env('FILE_URL') }}/{{ $generalInfo->logo }}" alt="" class="img-fluid"
                                     style="max-height: 100px; max-width: 150px;">
                             </span>
                         @else
