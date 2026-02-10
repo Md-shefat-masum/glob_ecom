@@ -61,7 +61,7 @@ class ProductManagementController extends Controller
                     ->addIndexColumn() // DT_RowIndex
                     ->editColumn('image', function ($row) {
                         if ($row->image) {
-                            return '<img src="' . asset($row->image) . '" 
+                            return '<img src="' . env('FILE_URL').'/'.($row->image) . '" 
                                         alt="' . $row->name . '" 
                                         class="img-thumbnail product-image-preview" 
                                         style="width: 60px; height: 60px; object-fit: cover; cursor: pointer;">';
