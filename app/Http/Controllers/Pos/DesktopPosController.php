@@ -745,7 +745,7 @@ class DesktopPosController extends Controller
         $customer_query = Customer::query()
             ->select('customers.*')
             ->selectRaw('(SELECT COUNT(*) FROM product_orders WHERE product_orders.customer_id = customers.id) as order_count');
-        
+
         // If customer_id is provided, use it directly
         if ($customerId) {
             $customer_query->where('id', $customerId);
@@ -758,7 +758,7 @@ class DesktopPosController extends Controller
                     ->orWhere('id', $q);
             });
         }
-        
+
         $customer_query->where('status', 'active')
             ->orderBy('id', 'desc');
 
@@ -768,12 +768,12 @@ class DesktopPosController extends Controller
             foreach ($customers as $customer) {
                 $customer->due_amount = ProductOrder::where('customer_id', $customer->id)->sum('due_amount');
                 $customer->advance = $customer->available_advance ?? 0;
-                
+
                 // Load billing addresses from billing_addresses table
                 $customer->billing_address = BillingAddress::where('customer_id', $customer->id)
                     ->where('order_id', 0)
                     ->get()
-                    ->map(function($addr) {
+                    ->map(function ($addr) {
                         return [
                             'full_name' => $addr->full_name,
                             'phone' => $addr->phone,
@@ -783,12 +783,12 @@ class DesktopPosController extends Controller
                         ];
                     })
                     ->toArray();
-                
+
                 // Load shipping addresses from shipping_addresses table
                 $customer->shipping_address = ShippingInfo::where('customer_id', $customer->id)
                     ->where('order_id', 0)
                     ->get()
-                    ->map(function($addr) {
+                    ->map(function ($addr) {
                         return [
                             'full_name' => $addr->full_name,
                             'phone' => $addr->phone,
@@ -803,12 +803,12 @@ class DesktopPosController extends Controller
         } else if ($customers) {
             $customers->due_amount = ProductOrder::where('customer_id', $customers->id)->sum('due_amount');
             $customers->advance = $customers->available_advance ?? 0;
-            
+
             // Load billing addresses from billing_addresses table
             $customers->billing_address = BillingAddress::where('customer_id', $customers->id)
                 ->where('order_id', 0)
                 ->get()
-                ->map(function($addr) {
+                ->map(function ($addr) {
                     return [
                         'full_name' => $addr->full_name,
                         'phone' => $addr->phone,
@@ -818,12 +818,12 @@ class DesktopPosController extends Controller
                     ];
                 })
                 ->toArray();
-            
+
             // Load shipping addresses from shipping_addresses table
             $customers->shipping_address = ShippingInfo::where('customer_id', $customers->id)
                 ->where('order_id', 0)
                 ->get()
-                ->map(function($addr) {
+                ->map(function ($addr) {
                     return [
                         'full_name' => $addr->full_name,
                         'phone' => $addr->phone,
@@ -874,20 +874,20 @@ class DesktopPosController extends Controller
         $customer->phone = $data['mobile'];
         $customer->email = $data['email'] ?? null;
         $customer->address = $data['address'] ?? null;
-        
+
         if (!$customer->exists) {
             $customer->creator = Auth::id();
             $customer->slug = Str::orderedUuid();
             $customer->status = 'active';
         }
         $customer->save();
-        
+
         // Handle billing addresses - save to billing_addresses table
         if (!empty($data['billing_address']) && is_array($data['billing_address'])) {
-            $billingAddresses = array_filter($data['billing_address'], function($addr) {
+            $billingAddresses = array_filter($data['billing_address'], function ($addr) {
                 return !empty($addr['full_name']) || !empty($addr['address']);
             });
-            
+
             if (!empty($billingAddresses)) {
                 // Delete existing billing addresses for this customer if updating
                 if ($customer->exists) {
@@ -895,7 +895,7 @@ class DesktopPosController extends Controller
                         ->where('order_id', 0)
                         ->delete();
                 }
-                
+
                 // Insert new billing addresses
                 foreach ($billingAddresses as $addr) {
                     BillingAddress::create([
@@ -914,13 +914,13 @@ class DesktopPosController extends Controller
                 }
             }
         }
-        
+
         // Handle shipping addresses - save to shipping_addresses table
         if (!empty($data['shipping_address']) && is_array($data['shipping_address'])) {
-            $shippingAddresses = array_filter($data['shipping_address'], function($addr) {
+            $shippingAddresses = array_filter($data['shipping_address'], function ($addr) {
                 return !empty($addr['full_name']) || !empty($addr['address']);
             });
-            
+
             if (!empty($shippingAddresses)) {
                 // Delete existing shipping addresses for this customer if updating
                 if ($customer->exists) {
@@ -928,7 +928,7 @@ class DesktopPosController extends Controller
                         ->where('order_id', 0)
                         ->delete();
                 }
-                
+
                 // Insert new shipping addresses
                 foreach ($shippingAddresses as $addr) {
                     ShippingInfo::create([
@@ -955,13 +955,13 @@ class DesktopPosController extends Controller
         if (!empty($data['save_as_user']) && ($data['save_as_user'] == 1 || $data['save_as_user'] === true)) {
             if (!empty($data['password'])) {
                 // Check if user already exists with this email or phone
-                $existingUser = User::where(function($query) use ($data) {
+                $existingUser = User::where(function ($query) use ($data) {
                     if (!empty($data['email'])) {
                         $query->where('email', $data['email']);
                     }
                     $query->orWhere('phone', $data['mobile']);
                 })->first();
-                
+
                 if (!$existingUser) {
                     // Create new user
                     $user = User::create([
@@ -981,14 +981,14 @@ class DesktopPosController extends Controller
                 }
             }
         }
-        
+
         $dueAmount = ProductOrder::where('customer_id', $customer->id)->sum('due_amount');
-        
+
         // Load billing and shipping addresses from separate tables
         $billingAddresses = BillingAddress::where('customer_id', $customer->id)
             ->where('order_id', 0)
             ->get()
-            ->map(function($addr) {
+            ->map(function ($addr) {
                 return [
                     'full_name' => $addr->full_name,
                     'phone' => $addr->phone,
@@ -996,11 +996,11 @@ class DesktopPosController extends Controller
                 ];
             })
             ->toArray();
-            
+
         $shippingAddresses = ShippingInfo::where('customer_id', $customer->id)
             ->where('order_id', 0)
             ->get()
-            ->map(function($addr) {
+            ->map(function ($addr) {
                 return [
                     'full_name' => $addr->full_name,
                     'phone' => $addr->phone,
@@ -1036,7 +1036,7 @@ class DesktopPosController extends Controller
 
         // Check if customer has any orders
         $orderCount = ProductOrder::where('customer_id', $customer->id)->count();
-        
+
         if ($orderCount > 0) {
             return response()->json([
                 'success' => false,
@@ -1544,11 +1544,7 @@ class DesktopPosController extends Controller
      */
     protected function productImageUrl(?string $path): string
     {
-        if ($path && file_exists(public_path($path))) {
-            return url($path);
-        }
-
-        return url('assets/images/default-product.png');
+        return env('FILE_URL') . '/'. $path;
     }
 
     /**
