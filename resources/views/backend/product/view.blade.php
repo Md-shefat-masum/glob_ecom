@@ -119,7 +119,7 @@
                     name: 'image',
                     render: function (data, type, full, meta) {
                         if (data) {
-                            return "<img class=\"gridProductImage\" src=\"/" + data + "\" width=\"40\"/>";
+                            return "<img class=\"gridProductImage\" src=\"{{env('FILE_URL')}}/" + data + "\" width=\"40\"/>";
                         } else {
                             return '';
                         }
