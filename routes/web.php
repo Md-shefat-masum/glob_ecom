@@ -3,6 +3,7 @@
 //auth routes
 
 use Illuminate\Support\Facades\Route;
+use Illuminate\Support\Facades\DB;
 use GuzzleHttp\Client;
 
 require __DIR__.'/authRoutes.php';
@@ -135,6 +136,9 @@ Route::get('/manifest.json', function () {
 
 Route::get('/brand-upload', function () {
     return 0;
+    DB::statement('SET FOREIGN_KEY_CHECKS=0');
+    \App\Models\Brand::truncate();
+    DB::statement('SET FOREIGN_KEY_CHECKS=1');
     try {
         $client = new Client([
             'verify' => false,   // if SSL issue occurs, optional
@@ -176,8 +180,12 @@ Route::get('/brand-upload', function () {
         ], 500);
     }
 });
+
 Route::get('/category-upload', function () {
-    // return 0;
+    return 0;
+    DB::statement('SET FOREIGN_KEY_CHECKS=0');
+    \App\Models\Category::truncate();
+    DB::statement('SET FOREIGN_KEY_CHECKS=1');
     try {
         $client = new Client([
             'verify' => false,
@@ -209,7 +217,7 @@ Route::get('/category-upload', function () {
                     "digital"               => $item->digital ?? null,
                     "meta_title"            => $item->meta_title ?? null,
                     "meta_description"      => $item->meta_description ?? null,
-                    "category_short_content"=> $item->category_short_content ?? null,
+                    "short_description"     => $item->category_short_content ?? null,
 
                     "created_at"            => $item->created_at,
                     "updated_at"            => $item->updated_at,
@@ -229,8 +237,12 @@ Route::get('/category-upload', function () {
         ], 500);
     }
 });
+
 Route::get('/subcategory-upload', function () {
     return 0;
+    DB::statement('SET FOREIGN_KEY_CHECKS=0');
+    \App\Models\Subcategory::truncate();
+    DB::statement('SET FOREIGN_KEY_CHECKS=1');
     try {
         $client = new Client([
             'verify' => false,
@@ -285,8 +297,12 @@ Route::get('/subcategory-upload', function () {
         ], 500);
     }
 });
+
 Route::get('/product-upload', function () {
-    return 0;
+    // return 0;
+    DB::statement('SET FOREIGN_KEY_CHECKS=0');
+    \App\Models\Product::truncate();
+    DB::statement('SET FOREIGN_KEY_CHECKS=1');
     ini_set('memory_limit', '512M');
     set_time_limit(0); // avoid timeout
     try {
