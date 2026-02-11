@@ -566,7 +566,7 @@
         }
 
         .pos-cart-item-variant {
-            font-size: 10px;
+            font-size: 12px;
             color: #6c757d;
             margin-top: 4px;
             font-weight: 400;
@@ -702,31 +702,7 @@
                     </div>
                 </div>
                 <div class="d-flex align-items-center">
-                    <div class="dropdown d-inline-block ml-2">
-                        <button type="button" class="btn header-item" id="page-header-user-dropdown" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
-                            <img class="rounded-circle header-profile-user" src="https://control-panel.comfiloom.com/assets/images/users/avatar-1.jpg?v=2.89" alt="Header Avatar">
-                            <span class="d-none d-sm-inline-block ml-1"> emon khan
-                                                                </span>
-                            <i class="mdi mdi-chevron-down d-none d-sm-inline-block"></i>
-                        </button>
-                        <div class="dropdown-menu dropdown-menu-right">
-                            
-                            <a class="dropdown-item d-flex align-items-center justify-content-between" href="https://control-panel.comfiloom.com/change/password/page">
-                                <span class="d-none d-sm-inline-block"><i class="fas fa-key"></i>
-                                    Change Password
-                                </span>
-                            </a>
-                            <a href="https://control-panel.comfiloom.com/logout" class="dropdown-item d-flex align-items-center justify-content-between logout" onclick="event.preventDefault(); document.getElementById('logout-form').submit();">
-                                <span class="d-none d-sm-inline-block">
-                                    <i class="fas fa-sign-out-alt"></i>
-                                    Logout
-                                </span>
-                            </a>
-
-                            <form id="logout-form" action="https://control-panel.comfiloom.com/logout" method="POST" class="d-none">
-                                <input type="hidden" name="_token" value="s1RZAOCVZv3KeX1xxxwVZrAT6lqsj2kZ6TXakqiC">                                </form>
-                        </div>
-                    </div>
+                    
 
                 </div>
             </div>
@@ -810,7 +786,7 @@
                                 <div class="pos-loading-spinner" style="margin: 0 auto;"></div>
                                 <div class="pos-loading-text">Searching...</div>
                             </div>
-                            <div v-else class="pos-search-dropdown-item" v-for="r in searchResults" :key="r.id">
+                            <div v-else class="pos-search-dropdown-item" v-for="r in searchResults.items" :key="r.id">
                                 <img :src="r.image_url" class="pos-dd-thumb" alt="">
                                 <div>
                                     <div class="pos-dd-title">@{{ r.title || r.name }}</div>
@@ -872,7 +848,7 @@
                                                                 @{{ it.title }}
                                                             </div>
                                                             <div>
-                                                                <i class="feather-trash-2" style="cursor: pointer; color: red; font-size: 12px;" @click="removeItem(it)"></i>
+                                                                <i class="feather-trash-2" style="cursor: pointer; color: red; font-size: 12px;" @click="removeItem(it, index)"></i>
                                                             </div>
                                                         </div>
                                                         <div class="pos-cart-item-variant" v-if="it.variant_combination_key">
@@ -882,7 +858,7 @@
                                                             <span>
                                                                 (avl: @{{ it.max_qty }})
                                                             </span>
-                                                            <span v-if="it.warehouse_name" style="background: #f0f0f0; padding: 2px 4px; border-radius: 4px;">
+                                                            <span v-if="it.warehouse_name" style="background: #f0f0f0; padding: 2px 4px; border-radius: 4px; white-space: normal;line-height: 25px;">
                                                                 <span>
                                                                     @{{ it.warehouse_name }}
                                                                 </span>
@@ -894,14 +870,16 @@
                                                                 <span>
                                                                     @{{ it.cartoon_name }}
                                                                 </span>
-                                                            </span>
-                                                            <span :style="'border: 1px solid #' + randomHex(it.unit_code || it.temp_id) + '; color: black; padding: 2px 4px; border-radius: 4px;'">
+                                                            </span> &nbsp;
+                                                            <span v-if="it.unit_code" :style="'border: 1px solid #' + randomHex(it.unit_code || it.temp_id) + '; color: black; padding: 2px 4px; border-radius: 4px;'">
                                                                 @{{ it.unit_code }}
                                                             </span>
                                                         </div>
                                                         <div class="pos-cart-item-variant" v-if="!it.variant_combination_key">
-                                                            Avl: @{{ it.max_qty }}
-                                                            <span v-if="it.warehouse_name" style="background: #f0f0f0; padding: 2px 4px; border-radius: 4px;">
+                                                            <span>
+                                                                Avl: @{{ it.max_qty }}
+                                                            </span> &nbsp;
+                                                            <span v-if="it.warehouse_name" style="background: #f0f0f0; padding: 2px 4px; border-radius: 4px;white-space: normal;line-height: 25px;">
                                                                 <span>
                                                                     @{{ it.warehouse_name }}
                                                                 </span>
@@ -913,8 +891,8 @@
                                                                 <span>
                                                                     @{{ it.cartoon_name }}
                                                                 </span>
-                                                            </span>
-                                                            <span :style="'border: 1px solid #' + randomHex(it.unit_code || it.temp_id) + '; color: black; padding: 2px 4px; border-radius: 4px;'">
+                                                            </span> &nbsp;
+                                                            <span v-if="it.unit_code" :style="'border: 1px solid #' + randomHex(it.unit_code || it.temp_id) + '; color: black; padding: 2px 4px; border-radius: 4px;'">
                                                                 @{{ it.unit_code }}
                                                             </span>
                                                         </div>

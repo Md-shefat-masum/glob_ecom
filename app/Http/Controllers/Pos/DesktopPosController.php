@@ -30,6 +30,7 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
+use App\Models\ProductOrderProductUnit;
 
 class DesktopPosController extends Controller
 {
@@ -203,6 +204,8 @@ class DesktopPosController extends Controller
      */
     public function searchProducts(Request $request)
     {
+        return $this->productsByCategory($request);
+        
         $q = trim($request->get('q', ''));
         $productId = $request->get('product_id');
         $warehouseId = $request->get('warehouse_id');
@@ -291,10 +294,20 @@ class DesktopPosController extends Controller
         $page = max(1, (int) $request->get('page', 1));
         $perPage = max(1, min(48, (int) $request->get('per_page', 24)));
         $warehouseId = $request->get('warehouse_id');
+        $q = trim($request->get('q', ''));
 
         $query = Product::query()
             ->where('status', 1)
             ->where('is_package', 0);
+
+        if ($q !== '') {
+            $query->where(function ($sub) use ($q) {
+                $sub->where('name', 'like', '%' . $q . '%');
+                $sub->orWhere('code', 'like', '%' . $q . '%');
+                $sub->orWhere('barcode', 'like', '%' . $q . '%');
+                $sub->orWhere('sku', 'like', '%' . $q . '%');
+            });
+        }
 
         if ($request->filled('category_id')) {
             $query->where('category_id', $request->get('category_id'));
@@ -1258,8 +1271,9 @@ class DesktopPosController extends Controller
             foreach ($cart as $item) {
                 $product = Product::findOrFail($item['product_id']);
                 $variantId = $item['variant_id'] ?? null;
+                $unitCode = $item['unit_code'] ?? null;
 
-                ProductOrderProduct::create([
+                $productOrderProduct = ProductOrderProduct::create([
                     'product_warehouse_id' => $warehouseId,
                     'product_warehouse_room_id' => null,
                     'product_warehouse_room_cartoon_id' => null,
@@ -1278,6 +1292,15 @@ class DesktopPosController extends Controller
                     'product_price' => $product->discount_price ?: $product->price,
                     'slug' => Str::orderedUuid(),
                 ]);
+
+                if ($unitCode) {
+                    ProductPurchaseOrderProductUnit::where('code', $unitCode)->update([
+                        'sale_id' => $order->id,
+                        'unit_status' => 'sold',
+                        'updated_at' => Carbon::now(),
+                        'product_order_product_id' => $productOrderProduct->id,
+                    ]);
+                }
 
                 // decrement stock
                 if ($variantId) {

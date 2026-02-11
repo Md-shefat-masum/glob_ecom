@@ -364,14 +364,15 @@ document.addEventListener('DOMContentLoaded', function () {
                 this.loading.search = true;
                 this.get(routes.search, { q: q })
                     .then((r) => {
-                        this.searchResults = r.data && r.data.data ? r.data.data : [];
-                        this.showSearchDropdown = true;
+                        // this.searchResults = r.data && r.data.data ? r.data.data : [];
+                        // this.showSearchDropdown = true;
+                        this.products = r.data && r.data.data ? r.data.data.items : [];
                     })
                     .catch(() => {})
                     .finally(() => {
                         this.loading.search = false;
                     });
-            }, 300),
+            }, 1000),
             closeSearch() {
                 this.showSearchDropdown = false;
             },
@@ -404,6 +405,11 @@ document.addEventListener('DOMContentLoaded', function () {
                     .finally(() => {
                         this.loading.barcode = false;
                     });
+            },
+
+            removeItem(it, index) {
+                this.cart.splice(index, 1);
+                this.recalcTotals();
             },
 
             // CART

@@ -581,7 +581,6 @@ class ProductPurchaseOrderController extends Controller
             for ($i = 1; $i <= $qty; $i++) {
                 // Generate unique code: product_id + (existing count + current iteration)
                 $unitCode = Carbon::now()->format('ymd') . $product->product_id. ($existingUnitsCount + $i);
-                
                 $productPurchaseOrderProductUnit = new ProductPurchaseOrderProductUnit();
                 $productPurchaseOrderProductUnit->product_warehouse_id = $product->product_warehouse_id;
                 $productPurchaseOrderProductUnit->product_purchase_order_id = $data->id;
