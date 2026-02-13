@@ -89,7 +89,7 @@ class LedgerController extends Controller
 
         // Fetch transactions for the given date range, ordered by ID descending
         $transactions = AcTransaction::whereBetween('transaction_date', [$startDate, $endDate])
-            ->orderBy('id', 'desc')
+            ->orderBy('id', 'asc')
             ->with(['debitAccount', 'creditAccount'])
             ->get();
 
