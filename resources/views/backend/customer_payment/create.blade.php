@@ -129,12 +129,9 @@
                                 <div class="col-md-6">
                                     <label for="payment_mode">Payment Mode <span class="text-danger">*</span></label>
                                     <select id="payment_mode" class="form-control" name="payment_mode" required>
-                                        <option value="cash">Cash</option>
-                                        <option value="bkash">bKash</option>
-                                        <option value="rocket">Rocket</option>
-                                        <option value="nogod">Nogod</option>
-                                        <option value="bank">Bank Transfer</option>
-                                        <option value="cheque">Cheque</option>
+                                        @foreach($paymentMethods as $paymentMethod)
+                                            <option value="{{ $paymentMethod->id }}">{{ $paymentMethod->payment_type }}</option>
+                                        @endforeach
                                     </select>
                                 </div>
                             </div>
