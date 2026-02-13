@@ -11,8 +11,10 @@ use App\Models\OrderPayment;
 use App\Http\Controllers\Account\Models\DbCustomerPayment;
 use App\Http\Controllers\Account\Models\AcTransaction;
 use App\Http\Controllers\Account\Models\AcAccount;
+use App\Http\Controllers\Account\Models\DbPaymentType;
 use App\Models\AcEventMapping;
 use App\Http\Controllers\Customer\Models\Customer;
+use App\Models\ProductOrder;
 use Illuminate\Support\Str;
 use Carbon\Carbon;
 use Illuminate\Log\Logger;
@@ -1517,23 +1519,44 @@ if (!function_exists('record_supplier_payment_accounting')) {
             $baseNote = $note ?: "Supplier Payment to {$supplier->name}";
             $transactions = [];
 
-            // Transaction 1: Primary - Supplier Payment
-            // Debit: Supplier Payable (Accounts Payable)
-            // Credit: From Account (Cash/Bank/etc - the account from which payment is made)
+            // Transaction 1: Debit Entry - Supplier Payable (Accounts Payable)
+            // Transaction 2: Credit Entry - From Account (Cash/Bank/etc - the account from which payment is made)
             $debitAccountId = $supplier_payment_event->debit_account_id; // Supplier Payable
             $creditAccountId = $fromAccountId ?? $supplier_payment_event->credit_account_id; // From Account
 
             if ($debitAccountId && $creditAccountId && $paymentAmount > 0) {
+                // Entry 1: Debit Entry
                 $transactions[] = [
                     'store_id' => $user->store_id ?? null,
                     'payment_code' => $paymentCode,
                     'transaction_date' => $paymentDate,
                     'transaction_type' => 'SUPPLIER_PAYMENT',
                     'debit_account_id' => $debitAccountId,
-                    'credit_account_id' => $creditAccountId,
+                    'credit_account_id' => null,
                     'debit_amt' => $paymentAmount,
+                    'credit_amt' => null,
+                    'note' => $baseNote . ' - Debit Entry',
+                    'supplier_id' => $supplier->id,
+                    'ref_supplier_payment_id' => $supplierPayment?->id ?? null,
+                    'created_by' => substr($user->name, 0, 50),
+                    'creator' => $user->id,
+                    'slug' => uniqid() . time(),
+                    'status' => 'active',
+                    'created_at' => now(),
+                    'updated_at' => now()
+                ];
+
+                // Entry 2: Credit Entry
+                $transactions[] = [
+                    'store_id' => $user->store_id ?? null,
+                    'payment_code' => $paymentCode,
+                    'transaction_date' => $paymentDate,
+                    'transaction_type' => 'SUPPLIER_PAYMENT',
+                    'debit_account_id' => null,
+                    'credit_account_id' => $creditAccountId,
+                    'debit_amt' => null,
                     'credit_amt' => $paymentAmount,
-                    'note' => $baseNote,
+                    'note' => $baseNote . ' - Credit Entry',
                     'supplier_id' => $supplier->id,
                     'ref_supplier_payment_id' => $supplierPayment?->id ?? null,
                     'created_by' => substr($user->name, 0, 50),
@@ -1596,6 +1619,294 @@ if (!function_exists('record_supplier_payment_accounting')) {
                 'line' => $e->getLine(),
                 'trace' => $e->getTraceAsString()
             ]);
+        }
+    }
+}
+
+if (!function_exists('record_customer_advance_payment_accounting')) {
+    function record_customer_advance_payment_accounting($customer, $paymentAmount, $paymentDate, $note = '', $paymentTypeId = null, $fromAccountId = null, $customerPayment = null)
+    {
+        try {
+            $user = auth()->user();
+            $customer_advance_payment_event = AcEventMapping::where('event_name', 'customer_advance_payment')->first();
+            $paymentType = DbPaymentType::where('id', $paymentTypeId)->first();
+
+
+            if (!$customer_advance_payment_event) {
+                Log::error('Customer advance payment event mapping not found', [
+                    'customer_id' => $customer->id ?? null,
+                    'customer_name' => $customer->name ?? null
+                ]);
+                return;
+            }
+
+            // Generate payment code for this group of transactions (CA = Customer Advance)
+            $paymentCode = generate_payment_code('CA');
+            $baseNote = "Customer Advance Payment from {$customer->name} - {$note}";
+            $transactions = [];
+
+            // Transaction 1: Debit Entry - From Account (Cash/Bank/etc - the account from which payment is received)
+            // Transaction 2: Credit Entry - Customer Advance Account (Liability - money owed to customer)
+            $debitAccountId = $paymentType->debit_account_id; // From Account (Cash/Bank)
+            $creditAccountId = $customer_advance_payment_event->credit_account_id; // Customer Advance Account
+
+            if ($debitAccountId && $creditAccountId && $paymentAmount > 0) {
+                // Entry 1: Debit Entry
+                $transactions[] = [
+                    'store_id' => $user->store_id ?? null,
+                    'payment_code' => $paymentCode,
+                    'transaction_date' => $paymentDate,
+                    'transaction_type' => 'CUSTOMER_ADVANCE_PAYMENT',
+                    'debit_account_id' => $paymentType->debit_account_id,
+                    'credit_account_id' => null,
+                    'debit_amt' => $paymentAmount,
+                    'credit_amt' => null,
+                    'note' => $baseNote . ' - Debit Entry',
+                    'customer_id' => $customer->id,
+                    'ref_customer_payment_id' => $customerPayment?->id ?? null,
+                    'created_by' => substr($user->name, 0, 50),
+                    'creator' => $user->id,
+                    'slug' => uniqid() . time(),
+                    'status' => 'active',
+                    'created_at' => now(),
+                    'updated_at' => now()
+                ];
+
+                // Entry 2: Credit Entry
+                $transactions[] = [
+                    'store_id' => $user->store_id ?? null,
+                    'payment_code' => $paymentCode,
+                    'transaction_date' => $paymentDate,
+                    'transaction_type' => 'CUSTOMER_ADVANCE_PAYMENT',
+                    'debit_account_id' => null,
+                    'credit_account_id' => $creditAccountId,
+                    'debit_amt' => null,
+                    'credit_amt' => $paymentAmount,
+                    'note' => $baseNote . ' - Credit Entry',
+                    'customer_id' => $customer->id,
+                    'ref_customer_payment_id' => $customerPayment?->id ?? null,
+                    'created_by' => substr($user->name, 0, 50),
+                    'creator' => $user->id,
+                    'slug' => uniqid() . time(),
+                    'status' => 'active',
+                    'created_at' => now(),
+                    'updated_at' => now()
+                ];
+            }
+
+            // Transaction 2: Secondary - Additional accounting entries (if secondary accounts exist)
+            // This can be extended for additional accounting requirements
+            if ($customer_advance_payment_event->secondary_debit_account_id && $customer_advance_payment_event->secondary_credit_account_id) {
+                // Add secondary transaction if needed
+                // Example: Bank charges, fees, etc.
+                // Uncomment and modify as per your accounting requirements
+                /*
+                $transactions[] = [
+                    'store_id' => $user->store_id ?? null,
+                    'payment_code' => $paymentCode,
+                    'transaction_date' => $paymentDate,
+                    'transaction_type' => 'CUSTOMER_ADVANCE_PAYMENT_FEE',
+                    'debit_account_id' => $customer_advance_payment_event->secondary_debit_account_id,
+                    'credit_account_id' => $customer_advance_payment_event->secondary_credit_account_id,
+                    'debit_amt' => $feeAmount,
+                    'credit_amt' => $feeAmount,
+                    'note' => $baseNote . ' - Bank Charges/Fees',
+                    'customer_id' => $customer->id,
+                    'ref_customer_payment_id' => $customerPayment?->id ?? null,
+                    'created_by' => substr($user->name, 0, 50),
+                    'creator' => $user->id,
+                    'slug' => uniqid() . time(),
+                    'status' => 'active',
+                    'created_at' => now(),
+                    'updated_at' => now()
+                ];
+                */
+            }
+
+            // Create all transactions in the group with the same payment_code
+            if (!empty($transactions)) {
+                AcTransaction::insert($transactions);
+                
+                Log::info('Customer advance payment accounting transactions created', [
+                    'customer_id' => $customer->id ?? null,
+                    'customer_name' => $customer->name ?? null,
+                    'payment_amount' => $paymentAmount,
+                    'payment_code' => $paymentCode,
+                    'transaction_count' => count($transactions)
+                ]);
+            }
+
+        } catch (\Exception $e) {
+            Log::error('Customer Advance Payment Accounting Error', [
+                'message' => $e->getMessage(),
+                'customer_id' => $customer->id ?? null,
+                'customer_name' => $customer->name ?? null,
+                'file' => $e->getFile(),
+                'line' => $e->getLine(),
+                'trace' => $e->getTraceAsString()
+            ]);
+        }
+    }
+}
+
+if (!function_exists('record_customer_due_payment_accounting')) {
+    function record_customer_due_payment_accounting(
+        $customer, $paymentAmount, $paymentDate, $note = '', $paymentTypeId = null, 
+        $fromAccountId = null, $customerPayment = null, $order = null
+    )
+    {
+        try {
+            $user = auth()->user();
+            $customer_due_payment_event = AcEventMapping::where('event_name', 'customer_due_payment')->first();
+            $paymentType = DbPaymentType::where('id', $paymentTypeId)->first();
+
+            if (!$customer_due_payment_event) {
+                Log::error('Customer advance payment event mapping not found', [
+                    'customer_id' => $customer->id ?? null,
+                    'customer_name' => $customer->name ?? null
+                ]);
+                return;
+            }
+
+            // Generate payment code for this group of transactions (CA = Customer Advance)
+            $paymentCode = generate_payment_code('CA');
+            $baseNote = "Customer Due Payment from {$customer->name} - {$note}";
+            $transactions = [];
+
+            // Transaction 1: Debit Entry - From Account (Cash/Bank/etc - the account from which payment is received)
+            // Transaction 2: Credit Entry - Customer Advance Account (Liability - money owed to customer)
+            $debitAccountId = $paymentType->debit_account_id; // Into Account (Cash/Bank)
+            $creditAccountId = $customer_due_payment_event->credit_account_id; // account receivable credit account
+
+            if ($debitAccountId && $creditAccountId && $paymentAmount > 0) {
+                // Entry 1: Debit Entry
+                $transactions[] = [
+                    'store_id' => $user->store_id ?? null,
+                    'payment_code' => $paymentCode,
+                    'transaction_date' => $paymentDate,
+                    'transaction_type' => 'CUSTOMER_DUE_PAYMENT',
+                    'debit_account_id' => $paymentType->debit_account_id,
+                    'credit_account_id' => null,
+                    'debit_amt' => $paymentAmount,
+                    'credit_amt' => null,
+                    'note' => $baseNote . ' - Debit Entry',
+                    'customer_id' => $customer->id,
+                    'ref_customer_payment_id' => $customerPayment?->id ?? null,
+                    'ref_sales_id' => $order?->id ?? null,
+                    'created_by' => substr($user->name, 0, 50),
+                    'creator' => $user->id,
+                    'slug' => uniqid() . time(),
+                    'status' => 'active',
+                    'created_at' => now(),
+                    'updated_at' => now()
+                ];
+
+                // Entry 2: Credit Entry
+                $transactions[] = [
+                    'store_id' => $user->store_id ?? null,
+                    'payment_code' => $paymentCode,
+                    'transaction_date' => $paymentDate,
+                    'transaction_type' => 'CUSTOMER_DUE_PAYMENT',
+                    'debit_account_id' => null,
+                    'credit_account_id' => $creditAccountId,
+                    'debit_amt' => null,
+                    'credit_amt' => $paymentAmount,
+                    'note' => $baseNote . ' - Credit Entry',
+                    'customer_id' => $customer->id,
+                    'ref_customer_payment_id' => $customerPayment?->id ?? null,
+                    'ref_sales_id' => $order?->id ?? null,
+                    'created_by' => substr($user->name, 0, 50),
+                    'creator' => $user->id,
+                    'slug' => uniqid() . time(),
+                    'status' => 'active',
+                    'created_at' => now(),
+                    'updated_at' => now()
+                ];
+            }
+
+            // Transaction 2: Secondary - Additional accounting entries (if secondary accounts exist)
+            // This can be extended for additional accounting requirements
+                if ($customer_due_payment_event->secondary_debit_account_id && $customer_due_payment_event->secondary_credit_account_id) {
+                // Add secondary transaction if needed
+                // Example: Bank charges, fees, etc.
+                // Uncomment and modify as per your accounting requirements
+                /*
+                $transactions[] = [
+                    'store_id' => $user->store_id ?? null,  
+                    'payment_code' => $paymentCode,
+                    'transaction_date' => $paymentDate,
+                    'transaction_type' => 'CUSTOMER_DUE_PAYMENT_FEE',
+                    'debit_account_id' => $customer_due_payment_event->secondary_debit_account_id,
+                    'credit_account_id' => $customer_due_payment_event->secondary_credit_account_id,
+                    'debit_amt' => $feeAmount,
+                    'credit_amt' => $feeAmount,
+                    'note' => $baseNote . ' - Bank Charges/Fees',
+                    'customer_id' => $customer->id,
+                    'ref_customer_payment_id' => $customerPayment?->id ?? null,
+                    'created_by' => substr($user->name, 0, 50),
+                    'creator' => $user->id,
+                    'slug' => uniqid() . time(),
+                    'status' => 'active',
+                    'created_at' => now(),
+                    'updated_at' => now()
+                ];
+                */
+            }
+
+            // Create all transactions in the group with the same payment_code
+            if (!empty($transactions)) {
+                AcTransaction::insert($transactions);
+                
+                Log::info('Customer due payment accounting transactions created', [
+                    'customer_id' => $customer->id ?? null,
+                    'customer_name' => $customer->name ?? null,
+                    'payment_amount' => $paymentAmount,
+                    'payment_code' => $paymentCode,
+                    'transaction_count' => count($transactions)
+                ]);
+            }
+
+        } catch (\Exception $e) {
+            Log::error('Customer Due Payment Accounting Error', [
+                'message' => $e->getMessage(),
+                'customer_id' => $customer->id ?? null,
+                'customer_name' => $customer->name ?? null,
+                'file' => $e->getFile(),
+                'line' => $e->getLine(),
+                'trace' => $e->getTraceAsString()
+            ]);
+        }
+    }
+}
+
+if (!function_exists('calc_customer_balance')) {
+    function calc_customer_balance($customerId)
+    {
+        try {
+            $customer = Customer::find($customerId);
+            $totalPaid = DbCustomerPayment::where('customer_id', $customer->id)->sum('payment');
+            $totalDue = ProductOrder::where('customer_id', $customer->id)->sum('due_amount');
+
+            if ($totalDue > $totalPaid) {
+                $balance = $totalDue - $totalPaid;
+            } else {
+                $balance = $totalPaid - $totalDue;
+            }
+            $customer->balance = $balance;
+            $customer->available_advance = $balance;
+            
+            $customer->save();
+            return $balance;
+        } catch (\Exception $e) {
+            Log::error('Customer Balance Calculation Error', [
+                'message' => $e->getMessage(),
+                'customer_id' => $customer->id ?? null,
+                'customer_name' => $customer->name ?? null,
+                'file' => $e->getFile(),
+                'line' => $e->getLine(),
+                'trace' => $e->getTraceAsString()
+            ]);
+            return null;
         }
     }
 }
