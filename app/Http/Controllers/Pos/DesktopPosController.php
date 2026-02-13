@@ -31,6 +31,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
 use App\Models\ProductOrderProductUnit;
+use Illuminate\Support\Facades\Log;
 
 class DesktopPosController extends Controller
 {
@@ -205,7 +206,7 @@ class DesktopPosController extends Controller
     public function searchProducts(Request $request)
     {
         return $this->productsByCategory($request);
-        
+
         $q = trim($request->get('q', ''));
         $productId = $request->get('product_id');
         $warehouseId = $request->get('warehouse_id');
@@ -466,6 +467,8 @@ class DesktopPosController extends Controller
             }
         }
 
+        $purchasePrice = (float) ($unit->price ?? 0);
+
         $productData = [
             'id' => $product->id,
             'name' => $product->name,
@@ -474,7 +477,10 @@ class DesktopPosController extends Controller
             'unit' => [
                 'id' => $unit->id,
                 'code' => $unit->code,
-                'price' => (float) ($unit->price ?? 0),
+                'purchase_price' => $purchasePrice,
+                'price' => (float) ($product->discount_price && $product->discount_price > 0
+                    ? $product->discount_price
+                    : $product->price),
                 'unit_status' => $unit->unit_status,
                 'product_purchase_order_product_id' => $unit->product_purchase_order_product_id,
                 'variant_combination_id' => $unit->variant_combination_id,
@@ -490,16 +496,28 @@ class DesktopPosController extends Controller
             $productData['variant_name'] = $variant->name;
             $productData['variant_barcode'] = $variant->barcode ?? null;
             $productData['image_url'] = $this->productImageUrl($variant->image ?: $product->image);
-            $productData['unit_price'] = $unit->price !== null && $unit->price > 0
-                ? (float) $unit->price
-                : ($variant->getEffectiveDiscountPrice() ?? $variant->getFinalPrice());
+
+            $productData['purchase_price'] = $purchasePrice;
+
+            $productData['unit_price'] = (float) ($product->discount_price && $product->discount_price > 0
+                ? $product->discount_price
+                : ($variant->getEffectiveDiscountPrice() ?? $variant->getFinalPrice()));
+
+            // $productData['unit_price'] = $unit->price !== null && $unit->price > 0
+            //     ? (float) $unit->price
+            //     : ($variant->getEffectiveDiscountPrice() ?? $variant->getFinalPrice());
+
             $productData['stock'] = $this->getVariantStockForWarehouse($variant, $warehouseId);
             $productData['max_qty'] = $productData['stock'];
         } else {
             $productData['variant_id'] = null;
-            $productData['unit_price'] = $unit->price !== null && $unit->price > 0
-                ? (float) $unit->price
-                : ($product->discount_price && $product->discount_price > 0 ? $product->discount_price : $product->price);
+
+            $productData['purchase_price'] = $purchasePrice;
+
+            $productData['unit_price'] = (float) ($product->discount_price && $product->discount_price > 0
+                ? $product->discount_price
+                : $product->price);
+
             $productData['stock'] = $this->getProductStockForWarehouse($product, $warehouseId);
             $productData['max_qty'] = $productData['stock'];
         }
@@ -1186,6 +1204,7 @@ class DesktopPosController extends Controller
      */
     public function createOrder(Request $request)
     {
+        // return response()->json($request->all(), 500);
         $payload = $request->validate([
             'cart' => 'required|array|min:1',
             'totals' => 'required|array',
@@ -1193,6 +1212,7 @@ class DesktopPosController extends Controller
             'customer.name' => 'nullable|string|max:255',
             'payments' => 'required|array|min:1',
             'use_advance' => 'boolean',
+            'advance_amount' => 'nullable|numeric|min:0',
             'order_note' => 'nullable|string|max:500',
             'order_source' => 'nullable|string|max:50',
         ]);
@@ -1217,19 +1237,38 @@ class DesktopPosController extends Controller
 
         if ($customerId) {
             $customer = Customer::findOrFail($customerId);
-            if ($useAdvance && $customer->available_advance > 0) {
-                $advanceUsed = min($customer->available_advance, $grandTotal - $paymentTotal);
+            if ($useAdvance) {
+                // Use provided advance_amount if available, otherwise calculate automatically
+                $providedAdvanceAmount = data_get($payload, 'advance_amount', 0);
+                if ($providedAdvanceAmount > 0) {
+                    // Validate that provided amount doesn't exceed available advance
+                    $advanceUsed = min($providedAdvanceAmount, $customer->available_advance, $grandTotal - $paymentTotal);
+                } else {
+                    // Auto-calculate if not provided
+                    if ($customer->available_advance > 0) {
+                        $advanceUsed = min($customer->available_advance, $grandTotal - $paymentTotal);
+                    }
+                }
             }
         }
 
         $totalPaid = $paymentTotal + $advanceUsed;
-        // POS orders must be fully paid; no due allowed
-        if (abs($totalPaid - $grandTotal) > 0.01) {
+
+        // Check if walking customer (id == 1) cannot have due amount
+        if ($customerId == 1 && abs($totalPaid - $grandTotal) > 0.01) {
             return response()->json([
                 'success' => false,
-                'message' => 'POS orders must be fully paid. Total payment (including advance) must equal grand total.',
+                'message' => 'Walking customer orders must be fully paid. Due amounts are not allowed for walk-in customers.',
             ], 422);
         }
+
+        // POS orders must be fully paid; no due allowed
+        // if (abs($totalPaid - $grandTotal) > 0.01) {
+        //     return response()->json([
+        //         'success' => false,
+        //         'message' => 'POS orders must be fully paid. Total payment (including advance) must equal grand total.',
+        //     ], 422);
+        // }
 
         DB::beginTransaction();
         try {
@@ -1298,8 +1337,19 @@ class DesktopPosController extends Controller
                         'sale_id' => $order->id,
                         'unit_status' => 'sold',
                         'updated_at' => Carbon::now(),
+
                         'product_order_product_id' => $productOrderProduct->id,
                     ]);
+                } else {
+                    ProductPurchaseOrderProductUnit::where('product_id', $product->id)
+                        ->where('unit_status', 'instock')
+                        ->update([
+                            'sale_id' => $order->id,
+                            'unit_status' => 'sold',
+                            'updated_at' => Carbon::now(),
+
+                            'product_order_product_id' => $productOrderProduct->id,
+                        ]);
                 }
 
                 // decrement stock
@@ -1313,8 +1363,7 @@ class DesktopPosController extends Controller
             }
 
             if ($customer && $advanceUsed > 0) {
-                $customer->available_advance = max(0, $customer->available_advance - $advanceUsed);
-                $customer->save();
+                calc_customer_balance($customer->id);
             }
 
             $random_no = random_int(100, 999) . random_int(1000, 9999);
@@ -1322,7 +1371,7 @@ class DesktopPosController extends Controller
             $order->save();
 
             // Record accounting transactions before commit
-            $this->recordPosOrderAccounting($order, $paymentLines, $advanceUsed, $cart);
+            $this->recordPosOrderAccounting($order, $paymentLines, $advanceUsed, $cart, $totals);
 
             DB::commit();
 
@@ -1567,7 +1616,7 @@ class DesktopPosController extends Controller
      */
     protected function productImageUrl(?string $path): string
     {
-        return env('FILE_URL') . '/'. $path;
+        return env('FILE_URL') . '/' . $path;
     }
 
     /**
@@ -1690,119 +1739,301 @@ class DesktopPosController extends Controller
      * Record accounting transactions for POS order
      * Based on record_sales_accounting_create helper function
      */
-    protected function recordPosOrderAccounting($order, $paymentLines, $advanceUsed, $cart)
+    protected function recordPosOrderAccounting($order, $paymentLines, $advanceUsed, $cart, $totals)
     {
         $user = Auth::user();
 
         // Get event mappings
-        $customerPaymentEvent = AcEventMapping::getByEventName('customer_payment');
-        $salesEvent = AcEventMapping::getByEventName('sales'); // POS orders are always cash sales
+        $customerPaymentEvent = AcEventMapping::getByEventName('customer_advance_payment');
+        $salesEvent = AcEventMapping::getByEventName('sales'); // POS orders are always cash sales credit->sales_revenue debit->payment_accounts
 
         if (!$salesEvent) {
-            \Log::warning('Sales event mapping not found for POS order accounting');
+            Log::warning('Sales event mapping not found for POS order accounting');
             return;
         }
 
-        // For POS orders (fully paid), we record:
-        // 1. Sales Revenue: Debit Payment Accounts (sum), Credit Sales Revenue
-        // 2. COGS: Debit COGS, Credit Inventory
-
-        // Calculate total payment from all methods
+        $payment_code = generate_payment_code('POS');
         $totalPaymentAmount = 0;
-        $paymentAccountIds = [];
 
-        foreach ($paymentLines as $line) {
-            $method = strtolower($line['method'] ?? '');
-            $amount = (float) ($line['amount'] ?? 0);
+        $coupon_amount = data_get($totals, 'coupon.amount', 0);
+        $discount_amount = data_get($totals, 'discount.amount', 0);
+        $round_off_amount = data_get($totals, 'round_off', 0);
 
-            if ($amount > 0) {
-                // Get payment account ID
-                $paymentAccountId = $this->getPaymentAccountIdForMethod($method, $line['payment_type_id'] ?? null);
+        $sales_revenue_amount = data_get($totals, 'sub_total', 0);
+        $extra_charge_amount = data_get($totals, 'extra_charge', 0);
+        $delivery_charge_amount = data_get($totals, 'delivery_charge', 0);
 
-                if ($paymentAccountId) {
-                    $totalPaymentAmount += $amount;
-                    if (!isset($paymentAccountIds[$paymentAccountId])) {
-                        $paymentAccountIds[$paymentAccountId] = 0;
-                    }
-                    $paymentAccountIds[$paymentAccountId] += $amount;
-                } else {
-                    \Log::warning("Payment account not found for method: {$method}");
-                }
-            }
-        }
-
-        // Add advance used to total payment
-        if ($advanceUsed > 0) {
-            // For advance, use customer advance account or default to first payment account
-            $advanceAccountId = $customerPaymentEvent->debit_account_id ?? array_key_first($paymentAccountIds);
-            if ($advanceAccountId) {
-                $totalPaymentAmount += $advanceUsed;
-                if (!isset($paymentAccountIds[$advanceAccountId])) {
-                    $paymentAccountIds[$advanceAccountId] = 0;
-                }
-                $paymentAccountIds[$advanceAccountId] += $advanceUsed;
-            }
-        }
-
-        // 1. Record sales revenue transaction
-        // For POS orders, debit goes to payment accounts (distributed), credit to sales revenue
-        if ($totalPaymentAmount > 0 && $salesEvent) {
-            // If multiple payment accounts, create separate transactions for each
-            foreach ($paymentAccountIds as $accountId => $amount) {
-                if ($amount > 0) {
+        /** save asset debit */
+        foreach ($paymentLines as $payment_type) {
+            if ($payment_type['amount'] > 0) {
+                $payment_info = DbPaymentType::find($payment_type['payment_type_id']);
+                $totalPaymentAmount += $payment_type['amount'];
+                if ($payment_info) {
                     AcTransaction::create([
                         'store_id' => $user->store_id ?? null,
-                        'payment_code' => $order->order_code,
-                        'transaction_date' => $order->sale_date ? Carbon::parse($order->sale_date)->format('Y-m-d') : Carbon::today()->format('Y-m-d'),
+                        'payment_code' => $payment_code,
+                        'transaction_date' => Carbon::today()->format('Y-m-d'),
                         'transaction_type' => 'POS_SALE',
-                        'debit_account_id' => $accountId, // Payment account (Cash/Bank)
-                        'credit_account_id' => $salesEvent->credit_account_id, // Sales Revenue
-                        'debit_amt' => $amount,
-                        'credit_amt' => $amount,
-                        'note' => "Sales payment via account for POS order {$order->order_code}",
+                        'debit_account_id' => $payment_info->debit_account_id,
+                        'credit_account_id' => null,
+                        'debit_amt' => $payment_type['amount'],
+                        'credit_amt' => null,
+                        'note' => "POS Sale - Debit Entry for {$payment_info->payment_type}",
                         'customer_id' => $order->customer_id,
+                        'ref_sales_id' => $order->id,
+                        'created_by' => substr($user->name, 0, 50),
                         'creator' => $user->id,
-                        'slug' => Str::orderedUuid() . uniqid(),
+                        'slug' => uniqid() . time(),
                         'status' => 'active',
-                        'created_at' => Carbon::now(),
-                        'updated_at' => Carbon::now()
+                        'created_at' => now(),
+                        'updated_at' => now()
                     ]);
                 }
             }
         }
 
-        // 4. Record COGS transaction (Secondary) if configured
-        if ($salesEvent->secondary_debit_account_id && $salesEvent->secondary_credit_account_id) {
-            // Calculate COGS from cart items
-            $cogs = 0;
-            foreach ($cart as $item) {
-                $product = Product::find($item['product_id'] ?? null);
-                if ($product) {
-                    $purchasePrice = $product->purchase_price ?? $product->price ?? 0;
-                    $cogs += $purchasePrice * ($item['qty'] ?? 0);
-                }
-            }
+        /** advance advance debit */
+        if ($advanceUsed > 0) {
+            $totalPaymentAmount += $advanceUsed;
 
-            if ($cogs > 0) {
-                AcTransaction::create([
-                    'store_id' => $user->store_id ?? null,
-                    'payment_code' => $order->order_code,
-                    'transaction_date' => $order->sale_date ? Carbon::parse($order->sale_date)->format('Y-m-d') : Carbon::today()->format('Y-m-d'),
-                    'transaction_type' => 'COGS_POS_SALE',
-                    'debit_account_id' => $salesEvent->secondary_debit_account_id, // COGS
-                    'credit_account_id' => $salesEvent->secondary_credit_account_id, // Inventory
-                    'debit_amt' => $cogs,
-                    'credit_amt' => $cogs,
-                    'note' => "COGS for POS order {$order->order_code}",
-                    'customer_id' => $order->customer_id,
-                    'creator' => $user->id,
-                    'slug' => Str::orderedUuid() . uniqid(),
-                    'status' => 'active',
-                    'created_at' => Carbon::now(),
-                    'updated_at' => Carbon::now()
-                ]);
+            AcTransaction::create([
+                'store_id' => $user->store_id ?? null,
+                'payment_code' => $payment_code,
+                'transaction_date' => Carbon::today()->format('Y-m-d'),
+                'transaction_type' => 'POS_SALE',
+                'debit_account_id' => $customerPaymentEvent->credit_account_id,
+                'credit_account_id' => null,
+                'debit_amt' => $advanceUsed,
+                'credit_amt' => null,
+                'note' => "POS Sale - Advance Used",
+                'customer_id' => $order->customer_id,
+                'ref_sales_id' => $order->id,
+                'created_by' => substr($user->name, 0, 50),
+                'creator' => $user->id,
+                'slug' => uniqid() . time(),
+                'status' => 'active',
+                'created_at' => now(),
+                'updated_at' => now()
+            ]);
+        }
+
+        /** customer due debit */
+        $totalDue = $order->grand_total - $totalPaymentAmount;
+        if ($totalDue > 0) {
+            $dueMapping = AcEventMapping::getByEventName('customer_due_order');
+
+            AcTransaction::create([
+                'store_id' => $user->store_id ?? null,
+                'payment_code' => $payment_code,
+                'transaction_date' => Carbon::today()->format('Y-m-d'),
+                'transaction_type' => 'POS_SALE',
+                'debit_account_id' => $dueMapping->debit_account_id,
+                'credit_account_id' => null,
+                'debit_amt' => $totalDue,
+                'credit_amt' => null,
+                'note' => "POS Sale - Customer Due",
+                'customer_id' => $order->customer_id,
+                'ref_sales_id' => $order->id,
+                'created_by' => substr($user->name, 0, 50),
+                'creator' => $user->id,
+                'slug' => uniqid() . time(),
+                'status' => 'active',
+                'created_at' => now(),
+                'updated_at' => now()
+            ]);
+        }
+
+        /** promotional discount debits */
+        if ($coupon_amount > 0) {
+            AcTransaction::create([
+                'store_id' => $user->store_id ?? null,
+                'payment_code' => $payment_code,
+                'transaction_date' => Carbon::today()->format('Y-m-d'),
+                'transaction_type' => 'POS_SALE',
+                'debit_account_id' => 30, // Discount Account
+                'credit_account_id' => null,
+                'debit_amt' => $coupon_amount,
+                'credit_amt' => null,
+                'note' => "POS Sale - Discount",
+                'customer_id' => $order->customer_id,
+                'ref_sales_id' => $order->id,
+                'created_by' => substr($user->name, 0, 50),
+                'creator' => $user->id,
+                'slug' => uniqid() . time(),
+                'status' => 'active',
+                'created_at' => now(),
+                'updated_at' => now()
+            ]);
+        }
+
+        /** discount debits */
+        if ($discount_amount > 0) {
+            AcTransaction::create([
+                'store_id' => $user->store_id ?? null,
+                'payment_code' => $payment_code,
+                'transaction_date' => Carbon::today()->format('Y-m-d'),
+                'transaction_type' => 'POS_SALE',
+                'debit_account_id' => 40, // Discount Account
+                'credit_account_id' => null,
+                'debit_amt' => $discount_amount,
+                'credit_amt' => null,
+                'note' => "POS Sale - Discount",
+                'customer_id' => $order->customer_id,
+                'ref_sales_id' => $order->id,
+                'created_by' => substr($user->name, 0, 50),
+                'creator' => $user->id,
+                'slug' => uniqid() . time(),
+                'status' => 'active',
+                'created_at' => now(),
+                'updated_at' => now()
+            ]);
+        }
+
+        /** round off debits */
+        if ($round_off_amount > 0) {
+            AcTransaction::create([
+                'store_id' => $user->store_id ?? null,
+                'payment_code' => $payment_code,
+                'transaction_date' => Carbon::today()->format('Y-m-d'),
+                'transaction_type' => 'POS_SALE',
+                'debit_account_id' => 41, // Round Off Account
+                'credit_account_id' => null,
+                'debit_amt' => $round_off_amount,
+                'credit_amt' => null,
+                'note' => "POS Sale - Round Off",
+                'customer_id' => $order->customer_id,
+                'ref_sales_id' => $order->id,
+                'created_by' => substr($user->name, 0, 50),
+                'creator' => $user->id,
+                'slug' => uniqid() . time(),
+                'status' => 'active',
+                'created_at' => now(),
+                'updated_at' => now()
+            ]);
+        }
+
+        /** sales revenue credits */
+        if ($sales_revenue_amount > 0) {
+            AcTransaction::create([
+                'store_id' => $user->store_id ?? null,
+                'payment_code' => $payment_code,
+                'transaction_date' => Carbon::today()->format('Y-m-d'),
+                'transaction_type' => 'POS_SALE',
+                'debit_account_id' => 19, // Sales Revenue
+                'credit_account_id' => null,
+                'debit_amt' => null,
+                'credit_amt' => $sales_revenue_amount,
+                'note' => "POS Sale - Sales Revenue",
+                'customer_id' => $order->customer_id,
+                'ref_sales_id' => $order->id,
+                'created_by' => substr($user->name, 0, 50),
+                'creator' => $user->id,
+                'slug' => uniqid() . time(),
+                'status' => 'active',
+                'created_at' => now(),
+                'updated_at' => now()
+            ]);
+        }
+
+        /** extra charge credits */
+        if ($extra_charge_amount > 0) {
+            AcTransaction::create([
+                'store_id' => $user->store_id ?? null,
+                'payment_code' => $payment_code,
+                'transaction_date' => Carbon::today()->format('Y-m-d'),
+                'transaction_type' => 'POS_SALE',
+                'debit_account_id' => 42, // Extra Charge
+                'credit_account_id' => null,
+                'debit_amt' => null,
+                'credit_amt' => $extra_charge_amount,
+                'note' => "POS Sale - Extra Charge",
+                'customer_id' => $order->customer_id,
+                'ref_sales_id' => $order->id,
+                'created_by' => substr($user->name, 0, 50),
+                'creator' => $user->id,
+                'slug' => uniqid() . time(),
+                'status' => 'active',
+                'created_at' => now(),
+                'updated_at' => now()
+            ]);
+        }
+
+        /** delivery charge credits */
+        if ($delivery_charge_amount > 0) {
+            AcTransaction::create([
+                'store_id' => $user->store_id ?? null,
+                'payment_code' => $payment_code,
+                'transaction_date' => Carbon::today()->format('Y-m-d'),
+                'transaction_type' => 'POS_SALE',
+                'debit_account_id' => 43, // Delivery Charge
+                'credit_account_id' => null,
+                'debit_amt' => null,
+                'credit_amt' => $delivery_charge_amount,
+                'note' => "POS Sale - Delivery Charge",
+                'customer_id' => $order->customer_id,
+                'ref_sales_id' => $order->id,
+                'created_by' => substr($user->name, 0, 50),
+                'creator' => $user->id,
+                'slug' => uniqid() . time(),
+                'status' => 'active',
+                'created_at' => now(),
+                'updated_at' => now()
+            ]);
+        }
+
+        /** Inventory account **/
+        $cogs = 0;
+        foreach ($cart as $item) {
+            $product = ProductPurchaseOrderProductUnit::where('product_id', $item['product_id'])->where('sale_id', $order->id)->first();
+            if ($product) {
+                $purchasePrice = $product->price ?? 0;
+                $cogs += $purchasePrice * ($item['qty'] ?? 0);
             }
         }
+
+        if ($cogs > 0) {
+            /** stock out credit */
+            AcTransaction::create([
+                'store_id' => $user->store_id ?? null,
+                'payment_code' => $payment_code,
+                'transaction_date' => Carbon::today()->format('Y-m-d'),
+                'transaction_type' => 'COGS_POS_SALE',
+                'debit_account_id' => null,
+                'credit_account_id' => 8, // asset Inventory account
+                'debit_amt' => null,
+                'credit_amt' => $cogs,
+                'note' => "Stock Out for POS order {$order->order_code}",
+                'customer_id' => $order->customer_id,
+                'creator' => $user->id,
+                'slug' => uniqid() . time(),
+                'status' => 'active',
+                'created_at' => Carbon::now(),
+                'updated_at' => Carbon::now(),
+                'ref_sales_id' => $order->id,
+            ]);
+
+            /** cost of goods sold debit */
+            AcTransaction::create([
+                'store_id' => $user->store_id ?? null,
+                'payment_code' => $payment_code,
+                'transaction_date' => Carbon::today()->format('Y-m-d'),
+                'transaction_type' => 'COGS_POS_SALE',
+                'debit_account_id' => null,
+                'credit_account_id' => 23, // expense cost of goods sold account
+                'debit_amt' => $cogs,
+                'credit_amt' => null,
+                'note' => "COGS for POS order {$order->order_code}",
+                'customer_id' => $order->customer_id,
+                'creator' => $user->id,
+                'slug' => uniqid() . time(),
+                'status' => 'active',
+                'created_at' => Carbon::now(),
+                'updated_at' => Carbon::now(),
+                'ref_sales_id' => $order->id,
+            ]);
+        }
+
+        return '';
     }
 
     /**
