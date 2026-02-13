@@ -2,9 +2,11 @@
 
 namespace App\Http\Controllers\Customer;
 
+use App\Http\Controllers\Account\Models\AcTransaction;
 use App\Http\Controllers\Controller;
 use App\Http\Controllers\Customer\Models\Customer;
 use App\Http\Controllers\Account\Models\DbCustomerPayment;
+use App\Http\Controllers\Account\Models\DbPaymentType;
 use App\Models\ProductOrder;
 use Carbon\Carbon;
 use Illuminate\Support\Str;
@@ -42,8 +44,9 @@ class CustomerPaymentController extends Controller
      */
     public function create()
     {
+        $paymentMethods = DbPaymentType::where('status', 'active')->get();
         $customers = Customer::where('status', 'active')->get();
-        return view('backend.customer_payment.create', compact('customers'));
+        return view('backend.customer_payment.create', compact('customers', 'paymentMethods'));
     }
 
     /**
@@ -83,7 +86,7 @@ class CustomerPaymentController extends Controller
         $validator = Validator::make($request->all(), [
             'customer_id' => 'required|exists:customers,id',
             'payment_amount' => 'required|numeric|min:0.01',
-            'payment_mode' => 'required|string',
+            'payment_mode' => 'required|exists:db_paymenttypes,id',
             'payment_date' => 'required|date',
         ]);
 
@@ -97,6 +100,7 @@ class CustomerPaymentController extends Controller
             $customer = Customer::findOrFail($request->customer_id);
             $user = auth()->user();
             $paymentAmount = floatval($request->payment_amount);
+            $paymentMethod = DbPaymentType::where('id', $request->payment_mode)->first();
 
             // Check if payment allocations are provided (FIFO)
             if ($request->payment_allocations) {
@@ -129,7 +133,6 @@ class CustomerPaymentController extends Controller
                         
                         // Update payments array
                         $payments = is_array($order->payments) ? $order->payments : json_decode($order->payments, true) ?? [];
-                        $paymentMethod = $request->payment_mode;
                         $payments[$paymentMethod] = ($payments[$paymentMethod] ?? 0) + $allocAmount;
                         $payments['total_paid'] = $order->paid_amount;
                         $payments['total_due'] = $order->due_amount;
@@ -137,13 +140,14 @@ class CustomerPaymentController extends Controller
                         $order->save();
 
                         // Record customer payment for this order
-                        DbCustomerPayment::create([
+                        $customerPayment = DbCustomerPayment::create([
                             'customer_id' => $customer->id,
                             'order_id' => $order->id,
                             'payment_date' => $request->payment_date,
                             'payment_type' => 'received',
                             'payment' => $allocAmount,
                             'payment_mode' => $request->payment_mode,
+                            'payment_mode_title' => $paymentMethod->title,
                             'payment_note' => $request->payment_note ?? "Payment for order {$order->order_code}",
                             'creator' => $user->id,
                             'slug' => Str::orderedUuid() . uniqid(),
@@ -151,6 +155,17 @@ class CustomerPaymentController extends Controller
                             'created_at' => Carbon::now(),
                             'updated_at' => Carbon::now()
                         ]);
+
+                        record_customer_due_payment_accounting(
+                            customer: $customer,
+                            paymentAmount: $allocAmount,
+                            paymentDate: $request->payment_date,
+                            note: $request->payment_note,
+                            paymentTypeId: $request->payment_mode,
+                            fromAccountId: $paymentMethod->debit_account_id,
+                            customerPayment: $customerPayment,
+                            order: $order
+                        );
 
                         $ordersPaid[] = $order->order_code;
                         $totalAllocated += $allocAmount;
@@ -173,6 +188,16 @@ class CustomerPaymentController extends Controller
                             'updated_at' => Carbon::now()
                         ]);
 
+                        record_customer_advance_payment_accounting(
+                            customer: $customer,
+                            paymentAmount: $allocAmount,
+                            paymentDate: $request->payment_date,
+                            note: $request->payment_note,
+                            paymentTypeId: $request->payment_mode,
+                            fromAccountId: $paymentMethod->debit_account_id,
+                            customerPayment: $customerPayment
+                        );
+
                         $totalAllocated += $allocAmount;
                     }
                 }
@@ -181,6 +206,8 @@ class CustomerPaymentController extends Controller
                 if (abs($totalAllocated - $paymentAmount) > 0.01) {
                     throw new \Exception('Payment allocation mismatch');
                 }
+
+                calc_customer_balance($customer->id);
 
                 DB::commit();
 
@@ -197,21 +224,34 @@ class CustomerPaymentController extends Controller
             }
             // Fallback: No allocation data (shouldn't happen with new UI)
             else {
-                // Record as advance payment
-                DbCustomerPayment::create([
+
+                $customerPayment = DbCustomerPayment::create([
                     'customer_id' => $customer->id,
                     'order_id' => null,
                     'payment_date' => $request->payment_date,
                     'payment_type' => 'advance',
                     'payment' => $paymentAmount,
                     'payment_mode' => $request->payment_mode,
-                    'payment_note' => $request->payment_note ?? 'Advance payment',
+                    'payment_mode_title' => $paymentMethod->payment_type,
+                    'payment_note' => $request->payment_note,
                     'creator' => $user->id,
                     'slug' => Str::orderedUuid() . uniqid(),
                     'status' => 'active',
                     'created_at' => Carbon::now(),
                     'updated_at' => Carbon::now()
                 ]);
+
+                record_customer_advance_payment_accounting(
+                    customer: $customer,
+                    paymentAmount: $paymentAmount,
+                    paymentDate: $request->payment_date,
+                    note: $request->payment_note,
+                    paymentTypeId: $request->payment_mode,
+                    fromAccountId: $paymentMethod->debit_account_id,
+                    customerPayment: $customerPayment
+                );
+
+                calc_customer_balance($customer->id);
 
                 DB::commit();
 
