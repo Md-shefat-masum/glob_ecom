@@ -18,6 +18,8 @@ var customer_list = `
                     </th>
                     <th>Name</th>
                     <th>Total Orders</th>
+                    <th>Due</th>
+                    <th>Bal</th>
                     <th>Phone</th>
                     <th>Addresss</th>
                     <th class="text-right">Action</th>
@@ -30,6 +32,8 @@ var customer_list = `
                     </td>
                     <td>{{ customer.name }}</td>
                     <td>{{ customer.order_count }}</td>
+                    <td>{{ customer.due_amount }}</td>
+                    <td>{{ customer.available_advance }}</td>
                     <td>{{ customer.phone }}</td>
                     <td>{{ customer.address }}</td>
                     <td>
@@ -265,6 +269,12 @@ var customer_form = `
 `;
 
 Vue.component('pos-customer-manage', {
+    props: {
+        setSelectedCustomer: {
+            type: Function,
+            required: true
+        }
+    },
     data: function () {
         return {
             window: window,
@@ -287,6 +297,14 @@ Vue.component('pos-customer-manage', {
             password: '',
             districts: [],
             show_customer_modal: false,
+        }
+    },
+    watch: {
+        customer: {
+            handler: function (newVal) {
+                this.setSelectedCustomer(newVal);
+            },
+            deep: true
         }
     },
     created: function () {
@@ -638,7 +656,10 @@ Vue.component('pos-customer-manage', {
                 phone: '',
                 image: null,
             };
-        }
+        },
+        format_number: function (number) {
+            return Intl.NumberFormat('en-US').format(number);
+        },
     },
     template: `
         <div>
@@ -651,8 +672,16 @@ Vue.component('pos-customer-manage', {
                         {{ customer?.id ?? '' }} -
                         {{ customer?.name ?? '' }} 
                     </div>
-                    <div class="customer_mobile">
-                        {{ customer?.phone ?? '' }}
+                    <div class="customer_mobile" v-if="customer && customer.due_amount > 0">
+                        <b>Due:</b> {{ format_number(customer?.due_amount ?? 0) }} <b>Bal:</b> {{ format_number(customer?.available_advance ?? 0) }}
+                    </div>
+                    <!-- 
+                        <div class="customer_mobile" v-if="customer && customer.id != 1">
+                            {{ customer?.phone ?? '' }}
+                        </div>
+                    -->
+                    <div v-if="customer && customer.id">
+                        <input v-model="customer.phone" placeholder="Enter phone" />
                     </div>
                 </div>
                 <div class="action_button">

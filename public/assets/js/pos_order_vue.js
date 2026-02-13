@@ -91,12 +91,13 @@ document.addEventListener('DOMContentLoaded', function () {
                 showPaymentModal: false,
                 paymentMethods: [
                     { id: 'cash', title: 'Cash', selected: true, amount: 0 },
-                    { id: 'bkash', title: 'Bkash', selected: false, amount: 0 },
-                    { id: 'nogod', title: 'Nogod', selected: false, amount: 0 },
-                    { id: 'rocket', title: 'Rocket', selected: false, amount: 0 },
-                    { id: 'bank', title: 'Bank', selected: false, amount: 0 },
+                    { id: 'bkash', title: 'Bkash', selected: true, amount: 0 },
+                    { id: 'nogod', title: 'Nogod', selected: true, amount: 0 },
+                    { id: 'rocket', title: 'Rocket', selected: true, amount: 0 },
+                    { id: 'bank', title: 'Bank', selected: true, amount: 0 },
                 ],
                 useAdvance: false,
+                advanceAmount: 0,
 
                 // holds
                 showHoldListModal: false,
@@ -128,9 +129,8 @@ document.addEventListener('DOMContentLoaded', function () {
                 }, 0);
 
                 let advance = 0;
-                if (this.useAdvance && this.selectedCustomer && this.selectedCustomer.advance) {
-                    const remaining = this.totals.grand_total - base;
-                    advance = Math.min(remaining, this.selectedCustomer.advance);
+                if (this.useAdvance) {
+                    advance = Number(this.advanceAmount || 0);
                 }
 
                 return base + advance;
@@ -142,11 +142,24 @@ document.addEventListener('DOMContentLoaded', function () {
                 const found = this.warehouses.find(w => Number(w.id) === Number(this.selectedWarehouseId));
                 return found ? found.title : 'Warehouse';
             },
+            totalPurchasePrice() {
+                return this.cart.reduce((sum, item) => {
+                    // Assumes each cart item has purchase_price and qty (quantity)
+                    const price = Number(item.purchase_price || 0);
+                    const qty = Number(item.qty || 0);
+                    return sum + (price * qty);
+                }, 0);
+            }
         },
         watch: {
-            selectedCustomer(newVal) {
+            selectedCustomer(newVal, oldVal) {
                 if (!newVal) {
                     this.activeTab = 'customer';
+                }
+                // Reset advance when customer changes
+                if (newVal && (!oldVal || newVal.id !== oldVal.id)) {
+                    this.useAdvance = false;
+                    this.advanceAmount = 0;
                 }
             },
         },
@@ -256,7 +269,8 @@ document.addEventListener('DOMContentLoaded', function () {
                                 title: method.title,
                                 account_id: method.account_id,
                                 account_name: method.account_name,
-                                selected: ['cash', 'Cash'].includes(method.title),
+                                // selected: ['cash', 'Cash'].includes(method.title),
+                                selected: true,
                                 amount: 0
                             }));
                             // Cash first, then others alphabetically by title
@@ -425,6 +439,7 @@ document.addEventListener('DOMContentLoaded', function () {
                     unit_data.warehouse_id = p.unit.warehouse_id;
                     unit_data.room_id = p.unit.room_id;
                     unit_data.cartoon_id = p.unit.cartoon_id;
+                    unit_data.purchase_price = p.unit.purchase_price;
                 }
 
                 // Variant chosen from product card (e.g. variant_combination_key)
@@ -622,6 +637,23 @@ document.addEventListener('DOMContentLoaded', function () {
                     round_off: Number(this.round_off || 0),
                     grand_total: Number(grand || 0),
                 };
+                
+                // Adjust advance amount if it exceeds available balance or due amount
+                if (this.useAdvance && this.selectedCustomer && this.selectedCustomer.advance) {
+                    const basePayments = this.paymentMethods.reduce((sum, m) => {
+                        return sum + (m.selected ? Number(m.amount || 0) : 0);
+                    }, 0);
+                    const dueAmount = this.totals.grand_total - basePayments;
+                    const availableAdvance = Number(this.selectedCustomer.advance) || 0;
+                    
+                    // Ensure advance doesn't exceed available balance or due amount
+                    if (this.advanceAmount > availableAdvance) {
+                        this.advanceAmount = availableAdvance;
+                    }
+                    if (this.advanceAmount > dueAmount) {
+                        this.advanceAmount = Math.max(0, dueAmount);
+                    }
+                }
             },
 
             // COUPON
@@ -937,13 +969,7 @@ document.addEventListener('DOMContentLoaded', function () {
                     return sum;
                 }, 0);
                 
-                let advance = 0;
-                if (this.useAdvance && this.selectedCustomer && this.selectedCustomer.advance) {
-                    advance = Math.min(
-                        this.totals.grand_total - otherPayments,
-                        this.selectedCustomer.advance
-                    );
-                }
+                const advance = this.useAdvance ? (Number(this.advanceAmount) || 0) : 0;
                 
                 const remaining = this.totals.grand_total - otherPayments - advance;
                 return Math.max(0, remaining);
@@ -971,11 +997,7 @@ document.addEventListener('DOMContentLoaded', function () {
                     return sum;
                 }, 0);
                 
-                let advance = 0;
-                if (this.useAdvance && this.selectedCustomer && this.selectedCustomer.advance) {
-                    const remaining = this.totals.grand_total - otherPayments - method.amount;
-                    advance = Math.min(remaining, this.selectedCustomer.advance);
-                }
+                const advance = this.useAdvance ? (Number(this.advanceAmount) || 0) : 0;
                 
                 const totalPaid = otherPayments + method.amount + advance;
                 
@@ -1003,6 +1025,70 @@ document.addEventListener('DOMContentLoaded', function () {
                 const dueAmount = this.getPaymentMaxAmount(method);
                 method.amount = dueAmount;
                 event.target.value = dueAmount;
+                this.$nextTick(() => {
+                    event.target.select();
+                });
+            },
+            onAdvanceCheckboxChange() {
+                if (this.useAdvance) {
+                    // Calculate default advance amount
+                    const basePayments = this.paymentMethods.reduce((sum, m) => {
+                        return sum + (m.selected ? Number(m.amount || 0) : 0);
+                    }, 0);
+                    const dueAmount = this.totals.grand_total - basePayments;
+                    const availableAdvance = this.selectedCustomer && this.selectedCustomer.advance 
+                        ? Number(this.selectedCustomer.advance) 
+                        : 0;
+                    
+                    // Default: due amount if customer has enough advance, otherwise available advance
+                    if (dueAmount > 0 && availableAdvance > 0) {
+                        this.advanceAmount = Math.min(dueAmount, availableAdvance);
+                    } else {
+                        this.advanceAmount = 0;
+                    }
+                } else {
+                    this.advanceAmount = 0;
+                }
+                this.recalcTotals();
+            },
+            updateAdvanceAmount(event) {
+                let value = parseFloat(event.target.value) || 0;
+                const availableAdvance = this.selectedCustomer && this.selectedCustomer.advance 
+                    ? Number(this.selectedCustomer.advance) 
+                    : 0;
+                
+                // Limit to available advance
+                if (value > availableAdvance) {
+                    value = availableAdvance;
+                    event.target.value = value;
+                }
+                
+                // Ensure non-negative
+                value = Math.max(0, value);
+                this.advanceAmount = value;
+                
+                // Recalculate totals
+                this.recalcTotals();
+            },
+            onAdvanceFocus(event) {
+                const basePayments = this.paymentMethods.reduce((sum, m) => {
+                    return sum + (m.selected ? Number(m.amount || 0) : 0);
+                }, 0);
+                const dueAmount = this.totals.grand_total - basePayments;
+                const availableAdvance = this.selectedCustomer && this.selectedCustomer.advance 
+                    ? Number(this.selectedCustomer.advance) 
+                    : 0;
+                
+                // Set to due amount if customer has enough, otherwise available advance
+                if (dueAmount > 0 && availableAdvance > 0) {
+                    this.advanceAmount = Math.min(dueAmount, availableAdvance);
+                } else if (availableAdvance > 0) {
+                    this.advanceAmount = availableAdvance;
+                } else {
+                    this.advanceAmount = 0;
+                }
+                
+                event.target.value = this.advanceAmount;
                 this.$nextTick(() => {
                     event.target.select();
                 });
@@ -1163,7 +1249,12 @@ document.addEventListener('DOMContentLoaded', function () {
                 this.loading.order = true;
                 const payload = {
                     cart: this.cart,
-                    totals: this.totals,
+                    totals: {
+                        ...this.totals,
+                        paid: this.paymentTotal,
+                        due: this.totals.grand_total - this.paymentTotal,
+                        total_purchase_price: this.totalPurchasePrice,
+                    },
                     customer: this.selectedCustomer,
                     payments: this.paymentMethods
                         .filter((m) => m.selected && m.amount > 0)
@@ -1173,6 +1264,7 @@ document.addEventListener('DOMContentLoaded', function () {
                             payment_type_id: m.payment_type_id || null
                         })),
                     use_advance: this.useAdvance,
+                    advance_amount: this.useAdvance ? this.advanceAmount : 0,
                     order_note: this.orderNote,
                     order_source: 'pos',
                 };

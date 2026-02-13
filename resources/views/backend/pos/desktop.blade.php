@@ -1036,6 +1036,27 @@
                             </div>
                             
                             <hr/>
+                            <div v-if="selectedCustomer && selectedCustomer.id != 1">
+                                <div class="pos-totals-row">
+                                    <span>
+                                        <label style="margin: 0; cursor: pointer; display: flex; align-items: center; gap: 6px;">
+                                            <input type="checkbox" v-model="useAdvance" @change="onAdvanceCheckboxChange">
+                                            <span>Advance</span>
+                                            <span v-if="selectedCustomer.advance" style="color: #6c757d; font-size: 11px;">
+                                                (Available: @{{ formatMoney(selectedCustomer.advance) }})
+                                            </span>
+                                        </label>
+                                    </span>
+                                    <span v-if="useAdvance">
+                                        <input type="text" class="pos-cart-input"
+                                            :value="advanceAmount"
+                                            @focus="onAdvanceFocus($event)"
+                                            @keyup.up.prevent="advanceAmount = Math.min((parseFloat(advanceAmount) || 0) + 1, selectedCustomer.advance || 0); updateAdvanceAmount({target: {value: advanceAmount}}); $event.target.value = advanceAmount"
+                                            @keyup.down.prevent="advanceAmount = Math.max(0, (parseFloat(advanceAmount) || 0) - 1); updateAdvanceAmount({target: {value: advanceAmount}}); $event.target.value = advanceAmount"
+                                            @input="updateAdvanceAmount($event)">
+                                    </span>
+                                </div>
+                            </div>
                             <div v-for="payment_mode in paymentMethods" :key="payment_mode.id" class="pos-totals-row">
                                 <span>
                                     <b>@{{ payment_mode.title }}</b>
