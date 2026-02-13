@@ -125,7 +125,7 @@
                                             @endif
                                         </td>
                                         <td>
-                                            <span class="badge badge-light">{{ ucfirst($payment->payment_mode ?? 'N/A') }}</span>
+                                            <span class="badge badge-light">{{ ucfirst($payment->payment_mode_title ?? 'N/A') }}</span>
                                         </td>
                                         <td>
                                             @if($payment->payment < 0)
