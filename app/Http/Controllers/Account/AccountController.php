@@ -42,14 +42,23 @@ class AccountController extends Controller
 
         $lastCountId = AcAccount::max('count_id') ?? 0;
         $countId = $lastCountId + 1;
-
-        // $customer_category = CustomerCategory::where('id', request()->customer_category_id)->first();
-        // $customer_source_type = CustomerSourceType::where('id', request()->customer_source_type_id)->first();
-        // dd(5);
+        
+        $parentAccount = AcAccount::where('id', request()->parent_id)->first();
+        $accountType = '';
+        $normalBalance = '';
+        if ($parentAccount) {
+            $accountType = $parentAccount->account_type;
+            $normalBalance = $parentAccount->normal_balance;
+        } else {
+            $accountType = '';
+            $normalBalance = '';
+        }
 
         AcAccount::insert([
             'store_id' => 1,
             'count_id' => $countId,
+            'account_type' => $accountType,
+            'normal_balance' => $normalBalance,
             'parent_id' => request()->parent_id ?? '',
             'account_name' => request()->account_name ?? '',
             'account_code' => request()->account_code ?? '',
