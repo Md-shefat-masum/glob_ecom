@@ -1973,3 +1973,20 @@ table.dataTable thead .sorting {
 .select2-container {
     z-index: 9999 !important;
 }
+
+.delivery_info_container {
+    &:has(#delivery_info_checkbox:checked) {
+        .delivery_info_wrapper {
+            display: block;
+        }
+    }
+
+    .delivery_info_wrapper {
+        display: none;
+        border: 1px dashed #ced4da;
+        border-radius: 6px;
+        padding: 10px;
+        margin-bottom: 10px;
+        background: #f8f9fa;
+    }
+}

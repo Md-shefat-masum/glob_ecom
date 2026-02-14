@@ -274,12 +274,12 @@
         </a>
     </li>
 
-    <li>
+    {{-- <li>
         <a href="{{ url('/view/delivery/charges') }}" data-active-paths="{{ url('/view/delivery/charges') }}">
             <i class="feather-truck"></i>
             <span>Delivery Charges</span>
         </a>
-    </li>
+    </li> --}}
 
     <li>
         <a href="{{ url('/view/upazila/thana') }}" data-active-paths="{{ url('/view/upazila/thana') }}">
@@ -640,19 +640,6 @@
         </a>
     </li>
 
-    {{-- SR MANAGEMENT --}}
-    <hr style="border-color: #c8c8c836; margin-top: 12px; margin-bottom: 12px;">
-    <li class="menu-title" style="color: green;">
-        📊 SR MANAGEMENT
-    </li>
-    <li>
-        <a href="{{ route('sales_targets.index') }}"
-            data-active-paths="{{ route('sales_targets.index') }}, {{ route('sales_targets.create') }}, {{ url('/sales-targets') }}/*">
-            <i class="feather-target"></i>
-            <span>Sales Targets</span>
-        </a>
-    </li>
-
     {{-- USER MANAGEMENT --}}
     <hr style="border-color: #c8c8c836; margin-top: 12px; margin-bottom: 12px;">
     <li class="menu-title" style="color: green;">
@@ -855,6 +842,13 @@
         <a href="{{ url('/social/chat/script/page') }}" data-active-paths="{{ url('/social/chat/script/page') }}">
             <i class="feather-message-square"></i>
             <span>Chat & Social Scripts</span>
+        </a>
+    </li>
+
+    <li>
+        <a href="{{ url('/courier-management') }}" data-active-paths="{{ url('/courier-management') }}">
+            <i class="feather-truck"></i>
+            <span>Courier Management</span>
         </a>
     </li>
 

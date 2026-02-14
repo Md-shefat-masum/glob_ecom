@@ -19,8 +19,12 @@ use App\Models\ProductOrderHoldItem;
 use App\Models\ProductOrderProduct;
 use App\Models\ProductPurchaseOrderProductUnit;
 use App\Http\Controllers\Inventory\Models\ProductStock;
+use App\Http\Controllers\Outlet\Models\CustomerSourceType;
+use App\Http\Controllers\Outlet\Models\Outlet;
 use App\Models\ProductVariantCombination;
 use App\Models\BillingAddress;
+use App\Models\ProductOrderCourierMethod;
+use App\Models\ProductOrderDeliveryMethod;
 use App\Models\ShippingInfo;
 use App\Models\User;
 use App\Models\UserSalesTarget;
@@ -31,6 +35,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
 use App\Models\ProductOrderProductUnit;
+use App\Models\ProductStockLog;
 use Illuminate\Support\Facades\Log;
 
 class DesktopPosController extends Controller
@@ -893,6 +898,7 @@ class DesktopPosController extends Controller
             'shipping_address.*.full_name' => 'nullable|string|max:255',
             'shipping_address.*.phone' => 'nullable|string|max:60',
             'shipping_address.*.address' => 'nullable|string',
+            'customer_source_type_id' => 'nullable|integer|exists:customer_source_types,id',
         ]);
 
         if (!empty($data['id'])) {
@@ -905,6 +911,7 @@ class DesktopPosController extends Controller
         $customer->phone = $data['mobile'];
         $customer->email = $data['email'] ?? null;
         $customer->address = $data['address'] ?? null;
+        $customer->customer_source_type_id = $data['customer_source_type_id'] ?? null;
 
         if (!$customer->exists) {
             $customer->creator = Auth::id();
@@ -1210,7 +1217,7 @@ class DesktopPosController extends Controller
             'totals' => 'required|array',
             'customer.id' => 'nullable|integer|exists:customers,id',
             'customer.name' => 'nullable|string|max:255',
-            'payments' => 'required|array|min:1',
+            // 'payments' => 'required|array|min:0',
             'use_advance' => 'boolean',
             'advance_amount' => 'nullable|numeric|min:0',
             'order_note' => 'nullable|string|max:500',
@@ -1219,9 +1226,11 @@ class DesktopPosController extends Controller
 
         $cart = $payload['cart'];
         $totals = $payload['totals'];
-        $paymentLines = $payload['payments'];
+        $paymentLines = $request->get('payments', []) ?? [];
         $useAdvance = (bool) ($payload['use_advance'] ?? false);
         $warehouseId = $request->get('warehouse_id');
+        $deliveryInfo = $request->get('delivery_info', []) ?? [];
+        $orderStatus = $request->get('order_status', 'quotation');
 
         $grandTotal = (float) data_get($totals, 'grand_total', 0);
         $paymentTotal = 0;
@@ -1234,6 +1243,8 @@ class DesktopPosController extends Controller
         $customerId = data_get($payload, 'customer.id');
         $advanceUsed = 0;
         $customer = null;
+
+        $is_confirmed = in_array($orderStatus, ['invoiced', 'delivered']);
 
         if ($customerId) {
             $customer = Customer::findOrFail($customerId);
@@ -1273,6 +1284,7 @@ class DesktopPosController extends Controller
         DB::beginTransaction();
         try {
             $order = new ProductOrder();
+            $order->store_id = auth()->user()->store_id;
             $order->order_code = $this->generateOrderCode();
             $order->product_warehouse_id = $warehouseId;
             $order->customer_id = $customerId;
@@ -1290,7 +1302,7 @@ class DesktopPosController extends Controller
             $order->decimal_round_off = data_get($totals, 'round_off', 0);
             $order->total = $grandTotal;
             $order->paid_amount = $totalPaid;
-            $order->due_amount = 0;
+            $order->due_amount = $grandTotal - $totalPaid;
             $order->payments = array_merge(
                 $this->paymentsArrayFromLines($paymentLines),
                 [
@@ -1299,9 +1311,10 @@ class DesktopPosController extends Controller
                     'total_due' => 0,
                 ]
             );
-            $order->note = $payload['order_note'] ?? null;
-            $order->order_source = 'pos';
-            $order->order_status = 'invoiced';
+            $order->note = $deliveryInfo['order_note'] ?? null;
+            $order->order_source = $payload['order_source'] ?? 'pos';
+            $order->order_status = $orderStatus;
+            $order->delivery_info = $deliveryInfo;
             $order->creator = Auth::id();
             $order->status = 'active';
             $order->created_at = Carbon::now();
@@ -1332,37 +1345,102 @@ class DesktopPosController extends Controller
                     'slug' => Str::orderedUuid(),
                 ]);
 
+                $unit_info = null;
                 if ($unitCode) {
-                    ProductPurchaseOrderProductUnit::where('code', $unitCode)->update([
-                        'sale_id' => $order->id,
-                        'unit_status' => 'sold',
-                        'updated_at' => Carbon::now(),
-
-                        'product_order_product_id' => $productOrderProduct->id,
-                    ]);
-                } else {
-                    ProductPurchaseOrderProductUnit::where('product_id', $product->id)
-                        ->where('unit_status', 'instock')
-                        ->update([
+                    if ($is_confirmed) {
+                        $unit_info = ProductPurchaseOrderProductUnit::where('code', $unitCode)->update([
                             'sale_id' => $order->id,
                             'unit_status' => 'sold',
                             'updated_at' => Carbon::now(),
 
                             'product_order_product_id' => $productOrderProduct->id,
                         ]);
-                }
-
-                // decrement stock
-                if ($variantId) {
-                    $variant = ProductVariantCombination::find($variantId);
-                    if ($variant) {
-                        $variant->decrement('stock', $item['qty']);
+                    }
+                } else {
+                    if ($is_confirmed) {
+                        $unit_info = ProductPurchaseOrderProductUnit::where('product_id', $product->id)
+                            ->where('unit_status', 'instock')
+                            ->orderBy('id')
+                            ->first();
+                        if ($unit_info) {
+                            $unit_info->update([
+                                'sale_id' => $order->id,
+                                'unit_status' => 'sold',
+                                'product_order_product_id' => $productOrderProduct->id,
+                            ]);
+                        }
                     }
                 }
-                $product->decrement('stock', $item['qty']);
+
+                // only confirmed orders can decrement stock
+                if ($is_confirmed) {
+                    // update product order product with purchase order product info
+                    $purchase_order_product = $unit_info->productPurchaseOrderProduct;
+                    if ($purchase_order_product) {
+                        $productOrderProduct->update([
+                            'product_warehouse_room_id' => $purchase_order_product->product_warehouse_room_id ?? null,
+                            'product_warehouse_room_cartoon_id' => $purchase_order_product->product_warehouse_room_cartoon_id ?? null,
+                            'product_supplier_id' => $purchase_order_product->product_supplier_id ?? null,
+                        ]);
+                    }
+                    
+                    // decrement stock
+                    if ($variantId) {
+                        $variant = ProductVariantCombination::find($variantId);
+                        if ($variant) {
+                            $variant->decrement('stock', $item['qty']);
+                        }
+                    }
+                    $product->decrement('stock', $item['qty']);
+
+
+                    if ($variantId) {
+                        ProductStock::where('product_id', $product->id)
+                            ->where('product_warehouse_id', $warehouseId)
+                            ->where('status', 'active')
+                            ->where('variant_combination_id', $variantId)
+                            ->decrement('qty', $item['qty']);
+
+                        ProductStockLog::create([
+                            'product_id' => $product->id,
+                            'warehouse_id' => $warehouseId,
+                            'product_name' => $product->name,
+                            'product_sales_id' => $order->id,
+                            'variant_combination_id' => $variantId,
+                            'quantity' => $item['qty'],
+                            'type' => 'sales',
+                            'has_variant' => 1,
+                            'creator' => Auth::id(),
+                            'slug' => uniqid() . time(),
+                            'status' => 'active',
+                            'created_at' => Carbon::now(),
+                            'updated_at' => Carbon::now(),
+                        ]);
+                    } else {
+                        ProductStock::where('product_id', $product->id)
+                            ->where('product_warehouse_id', $warehouseId)
+                            ->where('status', 'active')
+                            ->decrement('qty', $item['qty']);
+
+                        ProductStockLog::create([
+                            'product_id' => $product->id,
+                            'warehouse_id' => $warehouseId,
+                            'product_name' => $product->name,
+                            'product_sales_id' => $order->id,
+                            'quantity' => $item['qty'],
+                            'type' => 'sales',
+                            'has_variant' => 0,
+                            'creator' => Auth::id(),
+                            'slug' => uniqid() . time(),
+                            'status' => 'active',
+                            'created_at' => Carbon::now(),
+                            'updated_at' => Carbon::now(),
+                        ]);
+                    }
+                }
             }
 
-            if ($customer && $advanceUsed > 0) {
+            if ($customer && $advanceUsed > 0 && $is_confirmed) {
                 calc_customer_balance($customer->id);
             }
 
@@ -1370,8 +1448,13 @@ class DesktopPosController extends Controller
             $order->slug = $order->id . Str::orderedUuid() . uniqid() . $random_no;
             $order->save();
 
-            // Record accounting transactions before commit
-            $this->recordPosOrderAccounting($order, $paymentLines, $advanceUsed, $cart, $totals);
+            if ($is_confirmed) {
+                // Record accounting transactions before commit
+                $this->recordPosOrderAccounting($order, $paymentLines, $advanceUsed, $cart, $totals);
+
+                /** auth user target update */
+                $this->updateUserTarget($order);
+            }
 
             DB::commit();
 
@@ -1759,7 +1842,7 @@ class DesktopPosController extends Controller
         $discount_amount = data_get($totals, 'discount.amount', 0);
         $round_off_amount = data_get($totals, 'round_off', 0);
 
-        $sales_revenue_amount = data_get($totals, 'sub_total', 0);
+        $sales_revenue_amount = data_get($totals, 'subtotal', 0);
         $extra_charge_amount = data_get($totals, 'extra_charge', 0);
         $delivery_charge_amount = data_get($totals, 'delivery_charge', 0);
 
@@ -1769,16 +1852,22 @@ class DesktopPosController extends Controller
                 $payment_info = DbPaymentType::find($payment_type['payment_type_id']);
                 $totalPaymentAmount += $payment_type['amount'];
                 if ($payment_info) {
+                    $pt = strtolower($payment_info->payment_type ?? '');
+                    $paymentNote = str_contains($pt, 'cash')
+                        ? "POS Sale - Cash received from customer for order {$order->order_code}"
+                        : (str_contains($pt, 'bank')
+                            ? "POS Sale - Bank payment received from customer for order {$order->order_code}"
+                            : "POS Sale - Mobile wallet payment received from customer for order {$order->order_code}");
                     AcTransaction::create([
                         'store_id' => $user->store_id ?? null,
                         'payment_code' => $payment_code,
                         'transaction_date' => Carbon::today()->format('Y-m-d'),
-                        'transaction_type' => 'POS_SALE',
+                        'transaction_type' => 'Asset',
                         'debit_account_id' => $payment_info->debit_account_id,
                         'credit_account_id' => null,
                         'debit_amt' => $payment_type['amount'],
                         'credit_amt' => null,
-                        'note' => "POS Sale - Debit Entry for {$payment_info->payment_type}",
+                        'note' => $paymentNote,
                         'customer_id' => $order->customer_id,
                         'ref_sales_id' => $order->id,
                         'created_by' => substr($user->name, 0, 50),
@@ -1805,7 +1894,7 @@ class DesktopPosController extends Controller
                 'credit_account_id' => null,
                 'debit_amt' => $advanceUsed,
                 'credit_amt' => null,
-                'note' => "POS Sale - Advance Used",
+                'note' => "POS Sale - Applied customer advance to reduce payment for order {$order->order_code}",
                 'customer_id' => $order->customer_id,
                 'ref_sales_id' => $order->id,
                 'created_by' => substr($user->name, 0, 50),
@@ -1818,7 +1907,7 @@ class DesktopPosController extends Controller
         }
 
         /** customer due debit */
-        $totalDue = $order->grand_total - $totalPaymentAmount;
+        $totalDue = $order->total - $totalPaymentAmount;
         if ($totalDue > 0) {
             $dueMapping = AcEventMapping::getByEventName('customer_due_order');
 
@@ -1831,7 +1920,7 @@ class DesktopPosController extends Controller
                 'credit_account_id' => null,
                 'debit_amt' => $totalDue,
                 'credit_amt' => null,
-                'note' => "POS Sale - Customer Due",
+                'note' => "POS Sale - Customer due recorded for unpaid portion of order {$order->order_code}",
                 'customer_id' => $order->customer_id,
                 'ref_sales_id' => $order->id,
                 'created_by' => substr($user->name, 0, 50),
@@ -1854,7 +1943,7 @@ class DesktopPosController extends Controller
                 'credit_account_id' => null,
                 'debit_amt' => $coupon_amount,
                 'credit_amt' => null,
-                'note' => "POS Sale - Discount",
+                'note' => "POS Sale - Coupon applied for promotional discount for order {$order->order_code}",
                 'customer_id' => $order->customer_id,
                 'ref_sales_id' => $order->id,
                 'created_by' => substr($user->name, 0, 50),
@@ -1877,7 +1966,7 @@ class DesktopPosController extends Controller
                 'credit_account_id' => null,
                 'debit_amt' => $discount_amount,
                 'credit_amt' => null,
-                'note' => "POS Sale - Discount",
+                'note' => "POS Sale - Shop discount allowed for order {$order->order_code}",
                 'customer_id' => $order->customer_id,
                 'ref_sales_id' => $order->id,
                 'created_by' => substr($user->name, 0, 50),
@@ -1900,7 +1989,7 @@ class DesktopPosController extends Controller
                 'credit_account_id' => null,
                 'debit_amt' => $round_off_amount,
                 'credit_amt' => null,
-                'note' => "POS Sale - Round Off",
+                'note' => "POS Sale - Round off adjustment for order {$order->order_code}",
                 'customer_id' => $order->customer_id,
                 'ref_sales_id' => $order->id,
                 'created_by' => substr($user->name, 0, 50),
@@ -1919,11 +2008,11 @@ class DesktopPosController extends Controller
                 'payment_code' => $payment_code,
                 'transaction_date' => Carbon::today()->format('Y-m-d'),
                 'transaction_type' => 'POS_SALE',
-                'debit_account_id' => 19, // Sales Revenue
-                'credit_account_id' => null,
+                'debit_account_id' => null,
+                'credit_account_id' => 19, // Sales Revenue
                 'debit_amt' => null,
                 'credit_amt' => $sales_revenue_amount,
-                'note' => "POS Sale - Sales Revenue",
+                'note' => "POS Sale - Sales revenue recorded for order {$order->order_code} (subtotal of items)",
                 'customer_id' => $order->customer_id,
                 'ref_sales_id' => $order->id,
                 'created_by' => substr($user->name, 0, 50),
@@ -1942,11 +2031,11 @@ class DesktopPosController extends Controller
                 'payment_code' => $payment_code,
                 'transaction_date' => Carbon::today()->format('Y-m-d'),
                 'transaction_type' => 'POS_SALE',
-                'debit_account_id' => 42, // Extra Charge
-                'credit_account_id' => null,
+                'debit_account_id' => null,
+                'credit_account_id' => 42, // Extra Charge
                 'debit_amt' => null,
                 'credit_amt' => $extra_charge_amount,
-                'note' => "POS Sale - Extra Charge",
+                'note' => "POS Sale - Extra charge collected for order {$order->order_code} (service/handling fees)",
                 'customer_id' => $order->customer_id,
                 'ref_sales_id' => $order->id,
                 'created_by' => substr($user->name, 0, 50),
@@ -1965,11 +2054,11 @@ class DesktopPosController extends Controller
                 'payment_code' => $payment_code,
                 'transaction_date' => Carbon::today()->format('Y-m-d'),
                 'transaction_type' => 'POS_SALE',
-                'debit_account_id' => 43, // Delivery Charge
-                'credit_account_id' => null,
+                'debit_account_id' => null,
+                'credit_account_id' => 43, // Delivery Charge
                 'debit_amt' => null,
                 'credit_amt' => $delivery_charge_amount,
-                'note' => "POS Sale - Delivery Charge",
+                'note' => "POS Sale - Delivery charge collected for order {$order->order_code}",
                 'customer_id' => $order->customer_id,
                 'ref_sales_id' => $order->id,
                 'created_by' => substr($user->name, 0, 50),
@@ -1992,6 +2081,26 @@ class DesktopPosController extends Controller
         }
 
         if ($cogs > 0) {
+            /** cost of goods sold debit */
+            AcTransaction::create([
+                'store_id' => $user->store_id ?? null,
+                'payment_code' => $payment_code,
+                'transaction_date' => Carbon::today()->format('Y-m-d'),
+                'transaction_type' => 'COGS_POS_SALE',
+                'debit_account_id' => 23, // expense cost of goods sold account
+                'credit_account_id' => null,
+                'debit_amt' => $cogs,
+                'credit_amt' => null,
+                'note' => "COGS - Cost of goods sold recorded for POS order {$order->order_code}",
+                'customer_id' => $order->customer_id,
+                'creator' => $user->id,
+                'slug' => uniqid() . time(),
+                'status' => 'active',
+                'created_at' => Carbon::now(),
+                'updated_at' => Carbon::now(),
+                'ref_sales_id' => $order->id,
+            ]);
+
             /** stock out credit */
             AcTransaction::create([
                 'store_id' => $user->store_id ?? null,
@@ -2002,27 +2111,7 @@ class DesktopPosController extends Controller
                 'credit_account_id' => 8, // asset Inventory account
                 'debit_amt' => null,
                 'credit_amt' => $cogs,
-                'note' => "Stock Out for POS order {$order->order_code}",
-                'customer_id' => $order->customer_id,
-                'creator' => $user->id,
-                'slug' => uniqid() . time(),
-                'status' => 'active',
-                'created_at' => Carbon::now(),
-                'updated_at' => Carbon::now(),
-                'ref_sales_id' => $order->id,
-            ]);
-
-            /** cost of goods sold debit */
-            AcTransaction::create([
-                'store_id' => $user->store_id ?? null,
-                'payment_code' => $payment_code,
-                'transaction_date' => Carbon::today()->format('Y-m-d'),
-                'transaction_type' => 'COGS_POS_SALE',
-                'debit_account_id' => null,
-                'credit_account_id' => 23, // expense cost of goods sold account
-                'debit_amt' => $cogs,
-                'credit_amt' => null,
-                'note' => "COGS for POS order {$order->order_code}",
+                'note' => "Stock Out - Inventory reduced for sold products in POS order {$order->order_code}",
                 'customer_id' => $order->customer_id,
                 'creator' => $user->id,
                 'slug' => uniqid() . time(),
@@ -2059,5 +2148,88 @@ class DesktopPosController extends Controller
         }
 
         return null;
+    }
+
+    public function customerSource()
+    {
+        $sources = CustomerSourceType::select('id', 'title')->where('status', 'active')->get();
+        return response()->json(['success' => true, 'data' => $sources]);
+    }
+    public function deliveryMethods()
+    {
+        $methods = ProductOrderDeliveryMethod::select('id', 'title')->where('status', 'active')->get();
+        return response()->json(['success' => true, 'data' => $methods]);
+    }
+    public function outlets()
+    {
+        $outlets = Outlet::select('id', 'title')->where('status', 'active')->get();
+        return response()->json(['success' => true, 'data' => $outlets]);
+    }
+    public function courierMethods()
+    {
+        $methods = ProductOrderCourierMethod::select('id', 'title')->where('status', 'active')->get();
+        return response()->json(['success' => true, 'data' => $methods]);
+    }
+    public function updateUserTarget($order)
+    {
+        $user = Auth::user();
+        $today = Carbon::today();
+
+        // 1. Get monthly target (sum of all daily targets set for this month)
+        $monthlyTarget = UserSalesTarget::where('user_id', $user->id)
+            ->whereBetween('date', [
+                $today->copy()->startOfMonth(),
+                $today->copy()->endOfMonth()
+            ])
+            ->sum('target');
+
+        // 2. Get actual sales this month (POS orders only)
+        $monthlySales = ProductOrder::where('creator', $user->id)
+            ->where('order_source', 'pos')
+            ->whereBetween('created_at', [
+                $today->copy()->startOfMonth(),
+                $today->copy()->endOfMonth()->endOfDay()
+            ])
+            ->sum('subtotal');
+
+        // 3. Get today's sales only
+        $todaySales = ProductOrder::where('creator', $user->id)
+            ->where('order_source', 'pos')
+            ->whereBetween('created_at', [
+                $today->copy()->startOfDay(),
+                $today->copy()->endOfDay()
+            ])
+            ->sum('subtotal');
+
+        // 4. Find or create today's target record
+        $todayTarget = UserSalesTarget::firstOrCreate(
+            [
+                'user_id' => $user->id,
+                'date'    => $today,
+            ],
+            [
+                // Only set when creating new record
+                'target'  => 0,           // will be updated below if needed
+                'completed' => $todaySales,
+                'remains' => 0,           // will be calculated below
+            ]
+        );
+
+        // 5. Calculate remaining target for the month after today
+        $monthRemainingTarget = max(0, $monthlyTarget - $monthlySales);
+
+        // 6. Update today's record
+        // completed = actual sales done TODAY
+        // remains   = what is still needed for the rest of the month (after today)
+        $todayTarget->update([
+            'completed' => $todaySales,
+            'remains'   => $monthRemainingTarget,
+        ]);
+
+        // Optional improvement: if you want to auto-distribute remaining target to future days
+        // (only when creating new record or when monthly target changes)
+        // You can add logic here later — for now keeping it simple as per your request
+
+        return $todayTarget; // optional — for debugging or chaining
     }
 }

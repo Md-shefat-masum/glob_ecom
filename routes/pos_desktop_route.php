@@ -52,6 +52,11 @@ Route::group(['middleware' => ['auth']], function () {
     Route::post('/pos/desktop/create-order', [DesktopPosController::class, 'createOrder'])->name('pos.desktop.create-order');
     Route::post('/pos/desktop/preview', [DesktopPosController::class, 'preview'])->name('pos.desktop.preview');
     Route::get('/pos/desktop/print/{slug}', [DesktopPosController::class, 'print'])->name('pos.desktop.print');
+
+    Route::get('/pos/desktop/curstomer-source', [DesktopPosController::class, 'customerSource'])->name('pos.desktop.customer-source');
+    Route::get('/pos/desktop/delivery-methods', [DesktopPosController::class, 'deliveryMethods'])->name('pos.desktop.delivery-methods');
+    Route::get('/pos/desktop/outlets', [DesktopPosController::class, 'outlets'])->name('pos.desktop.outlets');
+    Route::get('/pos/desktop/courier-methods', [DesktopPosController::class, 'courierMethods'])->name('pos.desktop.courier-methods');
 });
 
 

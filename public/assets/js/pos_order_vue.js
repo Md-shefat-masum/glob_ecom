@@ -36,6 +36,10 @@ document.addEventListener('DOMContentLoaded', function () {
                 categories: [],
                 subcategories: [],
                 childcategories: [],
+                customerSources: [],
+                deliveryMethods: [],
+                courierMethods: [],
+                outlets: [],
                 filters: {
                     category: null,
                     subcategory: null,
@@ -96,6 +100,15 @@ document.addEventListener('DOMContentLoaded', function () {
                     { id: 'rocket', title: 'Rocket', selected: true, amount: 0 },
                     { id: 'bank', title: 'Bank', selected: true, amount: 0 },
                 ],
+                delivery_info: {
+                    delivery_method: '',
+                    expected_delivery_date: new Date(Date.now() + 2 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+                    order_source: 'pos',
+                    order_note: '',
+                    outlet_id: '',
+                    courier_method: null,
+                    courier_method_title: '',
+                },
                 useAdvance: false,
                 advanceAmount: 0,
 
@@ -103,7 +116,6 @@ document.addEventListener('DOMContentLoaded', function () {
                 showHoldListModal: false,
                 holdList: [],
                 hasSavedDraft: false,
-                orderNote: '',
                 activeTab: 'customer',
 
                 // loading states
@@ -120,6 +132,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 },
                 // target stats (auth user sales target analytics)
                 targetStats: null,
+                order_status: 'invoiced',
             };
         },
         computed: {
@@ -175,8 +188,44 @@ document.addEventListener('DOMContentLoaded', function () {
             this.fetchProducts();
             this.checkForSavedOrder(true);
             this.loadTargetStats();
+            this.loadCustomerSources();
+            this.loadDeliveryMethods();
+            this.loadOutlets();
+            this.loadCourierMethods();
         },
         methods: {
+            loadCustomerSources() {
+                if (!routes.customerSource) return;
+                this.get(routes.customerSource)
+                    .then((r) => {
+                        this.customerSources = r.data.data;
+                    })
+                    .catch(() => {});
+            },
+            loadDeliveryMethods() {
+                if (!routes.deliveryMethods) return;
+                this.get(routes.deliveryMethods)
+                    .then((r) => {
+                        this.deliveryMethods = r.data.data;
+                    })
+                    .catch(() => {});
+            },
+            loadOutlets() {
+                if (!routes.outlets) return;
+                this.get(routes.outlets)
+                    .then((r) => {
+                        this.outlets = r.data.data;
+                    })
+                    .catch(() => {});
+            },
+            loadCourierMethods() {
+                if (!routes.courierMethods) return;
+                this.get(routes.courierMethods)
+                    .then((r) => {
+                        this.courierMethods = r.data.data;
+                    })
+                    .catch(() => {});
+            },
             s_alert(title, icon = 'info', text = null) {
                 const opts = { title, icon, allowOutsideClick: false, allowEscapeKey: false };
                 if (text) opts.text = text;
@@ -743,7 +792,33 @@ document.addEventListener('DOMContentLoaded', function () {
             clearCart() {
                 this.cart = [];
                 this.orderNote = '';
+                // Reset all totals-related data (discount, coupon, charges, round off)
+                this.totals.discount.value = 0;
+                this.coupon = { code: '', percent: 0, type: '', value: 0 };
+                this.extra_charge = 0;
+                this.delivery_charge = 0;
+                this.round_off = 0;
+                // Reset advance and payment methods
+                this.useAdvance = false;
+                this.advanceAmount = 0;
+                this.paymentMethods.forEach((m) => { m.amount = 0; });
                 this.recalcTotals();
+                this.setSelectedCustomer({id: 1, name: 'Walking Customer', phone: '', email: '', address: '', image: null});
+               
+                this.fetchProducts();
+                this.delivery_info = {
+                    delivery_method: '',
+                    expected_delivery_date: new Date(Date.now() + 2 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+                    order_source: 'pos',
+                    order_note: '',
+                    outlet_id: '',
+                    courier_method: null,
+                    courier_method_title: '',
+                };
+            },
+            setCourierMethod(method) {
+                this.delivery_info.courier_method = method ? method.id : null;
+                this.delivery_info.courier_method_title = method ? method.title : '';
             },
 
             // HOLD LIST
@@ -1267,6 +1342,8 @@ document.addEventListener('DOMContentLoaded', function () {
                     advance_amount: this.useAdvance ? this.advanceAmount : 0,
                     order_note: this.orderNote,
                     order_source: 'pos',
+                    delivery_info: this.delivery_info,
+                    order_status: this.order_status,
                 };
 
                 this.post(routes.createOrder, payload)
@@ -1275,8 +1352,6 @@ document.addEventListener('DOMContentLoaded', function () {
                             const data = r.data.data || {};
                             this.currentOrderSlug = data.order_slug;
                             this.clearCart();
-                            this.closePaymentModal();
-                            this.clearSavedOrder();
                             if (routes.print && data.order_slug) {
                                 const url = routes.print.replace('__SLUG__', data.order_slug);
                                 this.get(url)

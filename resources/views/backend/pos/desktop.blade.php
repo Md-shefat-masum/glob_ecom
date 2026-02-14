@@ -640,6 +640,10 @@
                 invoiceUrlBase: "{{ route('order.invoice', ['slug' => '__SLUG__']) }}",
                 targetStats: "{{ route('pos.desktop.target-stats') }}",
                 productsByBarcode: "{{ route('pos.desktop.products-by-barcode') }}",
+                customerSource: "{{ route('pos.desktop.customer-source') }}",
+                deliveryMethods: "{{ route('pos.desktop.delivery-methods') }}",
+                outlets: "{{ route('pos.desktop.outlets') }}",
+                courierMethods: "{{ route('pos.desktop.courier-methods') }}",
             },
             warehouses: @json($warehouses ?? []),
             image_url: "{{env('IMAGE_URL')}}",
@@ -815,6 +819,7 @@
                         <div>
                             <pos-customer-manage
                                 :set-selected-customer="setSelectedCustomer"
+                                :customer_sources="customerSources"
                             ></pos-customer-manage>
                         </div>
                         
@@ -1103,61 +1108,70 @@
                             <button type="button" class="pos-btn-create" @click="openHoldList" 
                                 :disabled="loading.holdList">Hold List</button>
                         </div> --}}
-                        <div class="pos-actions-row">
+                        <div class="delivery_info_container">
+                            <div class="d-flex align-items-center" style="gap: 5px;">
+                                <label class="font-weight-bold pr-2">Order Status:</label>
+                                <label for="pending" class="d-flex align-items-center" style="gap: 5px;"><input type="radio" id="pending" name="order_status" value="pending" v-model="order_status"> Quotation</label>
+                                <label for="invoiced" class="d-flex align-items-center" style="gap: 5px;"><input type="radio" id="invoiced" name="order_status" value="invoiced" v-model="order_status"> Invoiced</label>
+                                <label for="delivered" class="d-flex align-items-center" style="gap: 5px;"><input type="radio" id="delivered" name="order_status" value="delivered" v-model="order_status"> Delivered</label>
+                            </div>
+                            <div class="d-flex align-items-center" style="gap: 5px;">
+                                <label class="font-weight-bold pr-2">Courier Method:</label>
+                                <label for="courier_method_none" class="d-flex align-items-center" style="gap: 5px;">
+                                    <input type="radio" id="courier_method_none" name="courier_method" value=""> None
+                                </label>
+                                <label :for="'courier_method_' + courier_method.id" v-for="courier_method in courierMethods" :key="courier_method.id" class="d-flex align-items-center" style="gap: 5px;">
+                                    <input type="radio" :id="'courier_method_' + courier_method.id" 
+                                        :name="'courier_method'" 
+                                        :value="courier_method.id" 
+                                        v-model="delivery_info.courier_method"
+                                        @change="setCourierMethod(courier_method)"> 
+                                    @{{ courier_method.title }}
+                                </label>
+                            </div>
+                            <div>
+                                <label for="delivery_info_checkbox">
+                                    <input type="checkbox" id="delivery_info_checkbox" >
+                                    Delivery Info
+                                </label>
+                            </div>
+                            <div class="delivery_info_wrapper">
+                                <div class="mb-2">
+                                    <label for="delivery_method">Delivery Method</label>
+                                    <select id="delivery_method" v-model="delivery_info.delivery_method" class="form-control">
+                                        <option value="">Select Delivery Method</option>
+                                        <option v-for="method in deliveryMethods" :key="method.id" :value="method.title">@{{ method.title }}</option>
+                                    </select>
+                                </div>
+                                <div class="mb-2" v-if="['store_pickup', 'store pickup'].includes((delivery_info.delivery_method || '').toString().toLowerCase())">
+                                    <label for="outlet_id">Outlet</label>
+                                    <select id="outlet_id" v-model="delivery_info.outlet_id" class="form-control">
+                                        <option value="">Select Outlet</option>
+                                        <option v-for="outlet in outlets" :key="outlet.id" :value="outlet.id">@{{ outlet.title }}</option>
+                                    </select>
+                                </div>
+                                <div class="mb-2">
+                                    <label for="expected_delivery_date">Expected Delivery Date</label>
+                                    <input type="date" id="expected_delivery_date" class="form-control" v-model="delivery_info.expected_delivery_date">
+                                </div>
+                                <div class="mb-2">
+                                    <label for="order_source">Order Source</label>
+                                    <select id="order_source" v-model="delivery_info.order_source" class="form-control">
+                                        <option value="">Select Order Source</option>
+                                        <option v-for="source in customerSources" :key="source.id" :value="source.id">@{{ source.title }}</option>
+                                    </select>
+                                </div>
+                                <div class="mb-2">
+                                    <label for="order_note">Note/Instruction</label>
+                                    <textarea id="order_note" class="form-control" rows="2" v-model="delivery_info.order_note"></textarea>
+                                </div>
+                            </div>
                         </div>
                         <button type="button" class="btn btn-success w-100" @click="submitOrder"
                             :disabled="loading.order" :class="{ 'pos-btn-loading': loading.order }">
                             <span v-if="!loading.order">Submit Order</span>
                             <span v-else>Processing...</span>
                         </button>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Hold list modal -->
-            <div class="pos-modal-backdrop" v-if="showHoldListModal">
-                <div class="pos-modal">
-                    <div class="pos-modal-header d-flex justify-content-between align-items-center">
-                        <h3>Hold Orders (@{{ selectedWarehouseName }})</h3>
-                        <button type="button" class="btn btn-sm btn-light" @click="closeHoldList">&times;</button>
-                    </div>
-                    <div class="pos-modal-body" style="position: relative;">
-                        <div class="pos-loading-overlay" v-if="loading.holdList">
-                            <div class="pos-loading-container">
-                                <div class="pos-loading-spinner"></div>
-                                <div class="pos-loading-text">Loading holds...</div>
-                            </div>
-                        </div>
-                        <table class="pos-cart-table">
-                            <thead>
-                                <tr>
-                                    <th>ID</th>
-                                    <th>Items</th>
-                                    <th>Total</th>
-                                    <th>Time</th>
-                                    <th></th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                <tr v-for="h in holdList" :key="h.id">
-                                    <td>#@{{ h.id }}</td>
-                                    <td>@{{ h.items_count }}</td>
-                                    <td>@{{ formatMoney(h.grand_total) }}</td>
-                                    <td>@{{ h.created_at }}</td>
-                                    <td>
-                                        <button type="button" class="btn btn-sm btn-primary"
-                                            @click="loadHold(h.id)" :disabled="loading.hold"
-                                            :class="{ 'pos-btn-loading': loading.hold }">
-                                            <span v-if="!loading.hold">Load</span>
-                                            <span v-else>Loading...</span>
-                                        </button>
-                                    </td>
-                                </tr>
-                                <tr v-if="!loading.holdList && holdList.length === 0">
-                                    <td colspan="5" class="text-center text-muted">No holds found</td>
-                                </tr>
-                            </tbody>
-                        </table>
                     </div>
                 </div>
             </div>

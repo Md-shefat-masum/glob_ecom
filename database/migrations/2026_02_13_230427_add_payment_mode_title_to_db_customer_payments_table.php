@@ -26,6 +26,7 @@ class AddPaymentModeTitleToDbCustomerPaymentsTable extends Migration
                 $table->unsignedBigInteger('ref_customer_payment_id')->nullable()->after('ref_sales_id')->comment('Reference to db_customer_payments table');
             }
         });
+
     }
 
     /**
@@ -46,5 +47,6 @@ class AddPaymentModeTitleToDbCustomerPaymentsTable extends Migration
                 $table->dropColumn('ref_customer_payment_id');
             }
         });
+
     }
 }

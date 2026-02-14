@@ -184,6 +184,15 @@ var customer_form = `
                 <label for="address">Address</label>
                 <textarea class="form-control" id="address" v-model="form_customer.address" rows="2"></textarea>
             </div>
+            <div>
+            </div>
+            <div class="form-group"">
+                <label for="customer_source">Customer Source</label>
+                <select class="form-control select2_el" id="customer_source" v-model="form_customer.customer_source_type_id">
+                    <option value="">Select Customer Source</option>
+                    <option v-for="source in this.customer_sources" :key="source.id" :value="source.id">{{ source.title }}</option>
+                </select>
+            </div>
 
             <!-- save as user -->
             <div class="form-group">
@@ -272,6 +281,10 @@ Vue.component('pos-customer-manage', {
     props: {
         setSelectedCustomer: {
             type: Function,
+            required: true
+        },
+        customer_sources: {
+            type: Array,
             required: true
         }
     },
@@ -459,6 +472,7 @@ Vue.component('pos-customer-manage', {
                 save_as_user: this.save_as_user ? 1 : 0,
                 password: this.save_as_user ? this.password : null,
                 image: this.form_customer.image || null,
+                customer_source_type_id: this.form_customer.customer_source_type_id || null,
             };
             
             // Only include billing_address if it has at least one non-empty address

@@ -1,50 +1,40 @@
-Sales target management
-directory: dashboard/resources/views/backend/sr_management/sales_target
-route path: dashboard/routes/srRoutes.php
+much better can do the design like this?
 
-routes: 
+<div>
+    <div>
+        headings
+    </div>
+    <div>
+        12 mar 2026
+        <div class="pl-5">
+            Payment Code	
+            <div class="pl-5">
+                Transaction Type	
+                <div class="pl-5">
+                    <div class="{{ if credit ? pl-5 : '' }}">
+                        particular
+                    </div>
+                    <div style="width: 150px">
+                        debit amount
+                    </div>
+                    <div style="width: 150px">
+                        credit amount
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
 
-a mini dashboard on top into all targets
-    top add a filter, range from date , to date, employee ( get the user who is present in user_sales_targets table)
-    get target analytics. and show in cards. 
-        total employee
-        total targets
-        sales
-        acheive percent
-    get data by ajax and set data. 
+ex:
 
-    /sales-targets/analytics
-
-/sales-targets - all targets order by date desc
-    table columns:
-        date
-        employee (show user_name)
-        target fillup ( show percent )
-        target
-        completed
-        remain
-        is_evaluated
-        action
-
-create single form for manage both create and update include form into the blades.
-    /sales-targets/create
-        form:
-            select employee - use a searchable ajax select2 return each time users limit 10
-                create an api /sales-targets/users-list
-            date
-            target (count number min 0)
-
-    /sales-targets/{id}/edit
-        form:
-            select employee - use a searchable ajax select2 return each time users limit 10
-                create an api /sales-targets/users-list
-            date
-            target (count number min 0)
-            completed
-            remain
-            is_evaluated
-
-/sales-targets/{id} - show target details.
-
-post: /sales-targets/store - store data
-psot: /sales-targets/update - update data
+Date	Payment Code	Transaction Type	Particulars	                        Debit	           Credit
+2026-01-14	—	
+    Opening balance	—                                                           0.00	            0.00
+2026-02-14	
+    PC-2602140001	
+        PURCHASE_CREATE	
+            Inventory — Purchase PO10001 ref - Stock added	                    12,000.00	
+            Accounts Payable — Purchase PO10001 ref - Supplier payment due		12,000.00	
+                Bank Account — POS Sale - Debit Entry for Bank	                                    30.00	
+                BCash — POS Sale - Debit Entry for Bkash	                                        1,870.00	
