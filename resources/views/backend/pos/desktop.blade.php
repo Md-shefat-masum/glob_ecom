@@ -1012,11 +1012,21 @@
                                 </span>
                             </div>
                             <div class="pos-totals-row">
-                                <span>Delivery Charge</span>
+                                <span>
+                                    Delivery Charge
+                                    <label for="delivery_charge_type_inside_city">
+                                        <input type="radio" name="delivery_charge_type" @change="setDeliveryChargeByType()" value="inside_city" id="delivery_charge_type_inside_city" v-model="delivery_info.delivery_charge_type">
+                                        <span>Inside</span>
+                                    </label>
+                                    <label for="delivery_charge_type_outside_city">
+                                        <input type="radio" name="delivery_charge_type" @change="setDeliveryChargeByType()" value="outside_city" id="delivery_charge_type_outside_city" v-model="delivery_info.delivery_charge_type">
+                                        <span>Outside</span>
+                                    </label>
+                                </span>
                                 <span>
                                     <input type="text" class="pos-cart-input"
                                         :value="delivery_charge"
-                                        @focus="$event.target.select()"
+                                        @focus="$event.target.select();"
                                         @keyup.up.prevent="incrementValue($event, 'delivery_charge', null)"
                                         @keyup.down.prevent="decrementValue($event, 'delivery_charge', null)"
                                         @input="updateValue($event, 'delivery_charge')"

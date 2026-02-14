@@ -108,6 +108,7 @@ document.addEventListener('DOMContentLoaded', function () {
                     outlet_id: '',
                     courier_method: null,
                     courier_method_title: '',
+                    delivery_charge_type: 'inside_city',
                 },
                 useAdvance: false,
                 advanceAmount: 0,
@@ -200,7 +201,7 @@ document.addEventListener('DOMContentLoaded', function () {
                     .then((r) => {
                         this.customerSources = r.data.data;
                     })
-                    .catch(() => {});
+                    .catch(() => { });
             },
             loadDeliveryMethods() {
                 if (!routes.deliveryMethods) return;
@@ -208,7 +209,7 @@ document.addEventListener('DOMContentLoaded', function () {
                     .then((r) => {
                         this.deliveryMethods = r.data.data;
                     })
-                    .catch(() => {});
+                    .catch(() => { });
             },
             loadOutlets() {
                 if (!routes.outlets) return;
@@ -216,7 +217,7 @@ document.addEventListener('DOMContentLoaded', function () {
                     .then((r) => {
                         this.outlets = r.data.data;
                     })
-                    .catch(() => {});
+                    .catch(() => { });
             },
             loadCourierMethods() {
                 if (!routes.courierMethods) return;
@@ -224,7 +225,7 @@ document.addEventListener('DOMContentLoaded', function () {
                     .then((r) => {
                         this.courierMethods = r.data.data;
                     })
-                    .catch(() => {});
+                    .catch(() => { });
             },
             s_alert(title, icon = 'info', text = null) {
                 const opts = { title, icon, allowOutsideClick: false, allowEscapeKey: false };
@@ -304,7 +305,7 @@ document.addEventListener('DOMContentLoaded', function () {
                             this.targetStats = r.data.data;
                         }
                     })
-                    .catch(() => {});
+                    .catch(() => { });
             },
             loadPaymentMethods() {
                 if (!routes.paymentMethods) return;
@@ -331,7 +332,7 @@ document.addEventListener('DOMContentLoaded', function () {
                                 if (aIsCash && bIsCash) return 0;
                                 return (a.title || '').localeCompare(b.title || '', undefined, { sensitivity: 'base' });
                             });
-                            
+
                             // If we have methods, replace the default ones
                             if (methods.length > 0) {
                                 this.paymentMethods = methods;
@@ -352,7 +353,7 @@ document.addEventListener('DOMContentLoaded', function () {
                         this.subcategories = data.subcategories || [];
                         this.childcategories = data.childcategories || [];
                     })
-                    .catch(() => {})
+                    .catch(() => { })
                     .finally(() => {
                         this.loading.categories = false;
                     });
@@ -370,7 +371,7 @@ document.addEventListener('DOMContentLoaded', function () {
                         this.products = data.items || [];
                         this.hasMore = !!data.has_more;
                     })
-                    .catch(() => {})
+                    .catch(() => { })
                     .finally(() => {
                         this.loading.products = false;
                     });
@@ -431,7 +432,7 @@ document.addEventListener('DOMContentLoaded', function () {
                         // this.showSearchDropdown = true;
                         this.products = r.data && r.data.data ? r.data.data.items : [];
                     })
-                    .catch(() => {})
+                    .catch(() => { })
                     .finally(() => {
                         this.loading.search = false;
                     });
@@ -476,9 +477,9 @@ document.addEventListener('DOMContentLoaded', function () {
             },
 
             // CART
-            selectProduct: function(p, variantPayload) {
+            selectProduct: function (p, variantPayload) {
                 let unit_data = {};
-                if(p.unit) {
+                if (p.unit) {
                     unit_data.unit_code = p.unit.code;
 
                     unit_data.warehouse_name = p.unit.warehouse_name;
@@ -504,7 +505,7 @@ document.addEventListener('DOMContentLoaded', function () {
                         unit_price: p.unit_price || 0,
                         ...unit_data,
                     };
-                    
+
                     this.addCartItem(data);
                     return;
                 }
@@ -530,7 +531,7 @@ document.addEventListener('DOMContentLoaded', function () {
                     unit_price: p.unit_price || 0,
                     ...unit_data,
                 });
-                
+
             },
             onAddFromSearch(r) {
                 this.addCartItem({
@@ -686,7 +687,7 @@ document.addEventListener('DOMContentLoaded', function () {
                     round_off: Number(this.round_off || 0),
                     grand_total: Number(grand || 0),
                 };
-                
+
                 // Adjust advance amount if it exceeds available balance or due amount
                 if (this.useAdvance && this.selectedCustomer && this.selectedCustomer.advance) {
                     const basePayments = this.paymentMethods.reduce((sum, m) => {
@@ -694,7 +695,7 @@ document.addEventListener('DOMContentLoaded', function () {
                     }, 0);
                     const dueAmount = this.totals.grand_total - basePayments;
                     const availableAdvance = Number(this.selectedCustomer.advance) || 0;
-                    
+
                     // Ensure advance doesn't exceed available balance or due amount
                     if (this.advanceAmount > availableAdvance) {
                         this.advanceAmount = availableAdvance;
@@ -703,6 +704,8 @@ document.addEventListener('DOMContentLoaded', function () {
                         this.advanceAmount = Math.max(0, dueAmount);
                     }
                 }
+
+                this.setDeliveryChargeByType();
             },
 
             // COUPON
@@ -803,8 +806,8 @@ document.addEventListener('DOMContentLoaded', function () {
                 this.advanceAmount = 0;
                 this.paymentMethods.forEach((m) => { m.amount = 0; });
                 this.recalcTotals();
-                this.setSelectedCustomer({id: 1, name: 'Walking Customer', phone: '', email: '', address: '', image: null});
-               
+                this.setSelectedCustomer({ id: 1, name: 'Walking Customer', phone: '', email: '', address: '', image: null });
+
                 this.fetchProducts();
                 this.delivery_info = {
                     delivery_method: '',
@@ -838,7 +841,7 @@ document.addEventListener('DOMContentLoaded', function () {
                             this.holdList = r.data.data || [];
                         }
                     })
-                    .catch(() => {})
+                    .catch(() => { })
                     .finally(() => {
                         this.loading.holdList = false;
                     });
@@ -858,7 +861,7 @@ document.addEventListener('DOMContentLoaded', function () {
                             this.showHoldListModal = false;
                         }
                     })
-                    .catch(() => {})
+                    .catch(() => { })
                     .finally(() => {
                         this.loading.hold = false;
                     });
@@ -882,7 +885,7 @@ document.addEventListener('DOMContentLoaded', function () {
             recalcPayment() {
                 // paymentTotal is computed
             },
-            
+
             // Input value update handlers
             updateCartValue(event, property, item) {
                 const value = parseFloat(event.target.value) || 0;
@@ -936,7 +939,7 @@ document.addEventListener('DOMContentLoaded', function () {
                             this.recalcItem(item);
                         }
                     } else {
-                        const current = property === 'qty' 
+                        const current = property === 'qty'
                             ? (parseInt(item[property]) || 0)
                             : (parseFloat(item[property]) || 0);
                         item[property] = current + step;
@@ -965,8 +968,8 @@ document.addEventListener('DOMContentLoaded', function () {
                     this[property] = current + step;
                 }
                 // Update the input value
-                event.target.value = item 
-                    ? (property.includes('.') 
+                event.target.value = item
+                    ? (property.includes('.')
                         ? item[property.split('.')[0]][property.split('.')[1]]
                         : item[property])
                     : (property === 'totals.discount.value' ? this.totals.discount.value : property === 'round_off' ? this.round_off : this[property]);
@@ -993,7 +996,7 @@ document.addEventListener('DOMContentLoaded', function () {
                         }
                         event.target.value = newValue;
                     } else {
-                        const current = property === 'qty' 
+                        const current = property === 'qty'
                             ? (parseInt(item[property]) || 0)
                             : (parseFloat(item[property]) || 0);
                         const newValue = Math.max(0, current - step);
@@ -1033,7 +1036,7 @@ document.addEventListener('DOMContentLoaded', function () {
                     event.target.value = item.qty;
                 }
             },
-            
+
             // Payment input handlers
             getPaymentMaxAmount(method) {
                 // Calculate remaining due amount
@@ -1043,26 +1046,26 @@ document.addEventListener('DOMContentLoaded', function () {
                     }
                     return sum;
                 }, 0);
-                
+
                 const advance = this.useAdvance ? (Number(this.advanceAmount) || 0) : 0;
-                
+
                 const remaining = this.totals.grand_total - otherPayments - advance;
                 return Math.max(0, remaining);
             },
             updatePaymentValue(event, method) {
                 let value = parseFloat(event.target.value) || 0;
                 const maxAmount = this.getPaymentMaxAmount(method);
-                
+
                 // Limit to remaining due amount
                 if (value > maxAmount) {
                     value = maxAmount;
                     event.target.value = value;
                 }
-                
+
                 // Ensure non-negative
                 value = Math.max(0, value);
                 method.amount = value;
-                
+
                 // Recalculate to ensure total doesn't exceed grand total
                 // Get total of all other payment methods
                 const otherPayments = this.paymentMethods.reduce((sum, m) => {
@@ -1071,11 +1074,11 @@ document.addEventListener('DOMContentLoaded', function () {
                     }
                     return sum;
                 }, 0);
-                
+
                 const advance = this.useAdvance ? (Number(this.advanceAmount) || 0) : 0;
-                
+
                 const totalPaid = otherPayments + method.amount + advance;
-                
+
                 // If total exceeds grand total, adjust this method
                 if (totalPaid > this.totals.grand_total) {
                     const excess = totalPaid - this.totals.grand_total;
@@ -1111,10 +1114,10 @@ document.addEventListener('DOMContentLoaded', function () {
                         return sum + (m.selected ? Number(m.amount || 0) : 0);
                     }, 0);
                     const dueAmount = this.totals.grand_total - basePayments;
-                    const availableAdvance = this.selectedCustomer && this.selectedCustomer.advance 
-                        ? Number(this.selectedCustomer.advance) 
+                    const availableAdvance = this.selectedCustomer && this.selectedCustomer.advance
+                        ? Number(this.selectedCustomer.advance)
                         : 0;
-                    
+
                     // Default: due amount if customer has enough advance, otherwise available advance
                     if (dueAmount > 0 && availableAdvance > 0) {
                         this.advanceAmount = Math.min(dueAmount, availableAdvance);
@@ -1128,20 +1131,20 @@ document.addEventListener('DOMContentLoaded', function () {
             },
             updateAdvanceAmount(event) {
                 let value = parseFloat(event.target.value) || 0;
-                const availableAdvance = this.selectedCustomer && this.selectedCustomer.advance 
-                    ? Number(this.selectedCustomer.advance) 
+                const availableAdvance = this.selectedCustomer && this.selectedCustomer.advance
+                    ? Number(this.selectedCustomer.advance)
                     : 0;
-                
+
                 // Limit to available advance
                 if (value > availableAdvance) {
                     value = availableAdvance;
                     event.target.value = value;
                 }
-                
+
                 // Ensure non-negative
                 value = Math.max(0, value);
                 this.advanceAmount = value;
-                
+
                 // Recalculate totals
                 this.recalcTotals();
             },
@@ -1150,10 +1153,10 @@ document.addEventListener('DOMContentLoaded', function () {
                     return sum + (m.selected ? Number(m.amount || 0) : 0);
                 }, 0);
                 const dueAmount = this.totals.grand_total - basePayments;
-                const availableAdvance = this.selectedCustomer && this.selectedCustomer.advance 
-                    ? Number(this.selectedCustomer.advance) 
+                const availableAdvance = this.selectedCustomer && this.selectedCustomer.advance
+                    ? Number(this.selectedCustomer.advance)
                     : 0;
-                
+
                 // Set to due amount if customer has enough, otherwise available advance
                 if (dueAmount > 0 && availableAdvance > 0) {
                     this.advanceAmount = Math.min(dueAmount, availableAdvance);
@@ -1162,7 +1165,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 } else {
                     this.advanceAmount = 0;
                 }
-                
+
                 event.target.value = this.advanceAmount;
                 this.$nextTick(() => {
                     event.target.select();
@@ -1279,7 +1282,7 @@ document.addEventListener('DOMContentLoaded', function () {
                         const w = window.open('', '_blank', 'width=900,height=700');
                         w.document.write(html);
                     })
-                    .catch(() => {});
+                    .catch(() => { });
             },
             printPosPreview() {
                 if (!routes.print) return;
@@ -1297,7 +1300,7 @@ document.addEventListener('DOMContentLoaded', function () {
                         w.document.write(html);
                         w.print();
                     })
-                    .catch(() => {});
+                    .catch(() => { });
             },
             printA4Preview() {
                 const slug = this.currentOrderSlug || null;
@@ -1333,8 +1336,8 @@ document.addEventListener('DOMContentLoaded', function () {
                     customer: this.selectedCustomer,
                     payments: this.paymentMethods
                         .filter((m) => m.selected && m.amount > 0)
-                        .map((m) => ({ 
-                            method: m.id, 
+                        .map((m) => ({
+                            method: m.id,
                             amount: m.amount,
                             payment_type_id: m.payment_type_id || null
                         })),
@@ -1362,7 +1365,7 @@ document.addEventListener('DOMContentLoaded', function () {
                                         w.document.write(html);
                                         w.print();
                                     })
-                                    .catch(() => {});
+                                    .catch(() => { });
                             }
                         } else {
                             this.s_alert((r.data && r.data.message) || 'Order creation failed', 'error');
@@ -1378,6 +1381,50 @@ document.addEventListener('DOMContentLoaded', function () {
                         this.loading.order = false;
                     });
             },
+
+            /**
+             * Calculate Steadfast Courier delivery charge
+             * @param {boolean} inside_city - true = Inside Dhaka, false = Outside Dhaka
+             * @param {number} outside_city - this will not be used if inside_city is true (for clarity)
+             * @param {number[]} weights - weight array (kg), e.g. [0.5, 1.2, 3]
+             * @returns {number} total delivery charge (only courier charge, COD 1% extra to add)
+             */
+            getSteadfastDeliveryCharge(inside_city, weights) {
+                // base charge (1kg / 1kg)
+                const baseInside = 70;
+                const baseOutside = 130;
+
+                // extra charge per kg (approx 20-25 taka)
+                const extraPerKg = 20;
+
+                const minCharge = 0; // 50 or 80 
+
+                let total = 0;
+
+                weights.forEach(weight => {
+                    let charge = 0;
+
+                    if (weight <= 0) return; // invalid skip
+
+                    const base = inside_city ? baseInside : baseOutside;
+
+                    if (weight <= 1) {
+                        charge = base;
+                    } else {
+                        const extraKg = weight - 1;
+                        charge = base + (Math.ceil(extraKg) * extraPerKg);
+                    }
+
+                    total += Math.max(charge, minCharge);
+                });
+
+                return total;
+            },
+            setDeliveryChargeByType() {
+                const type = this.delivery_info.delivery_charge_type;
+                const weights = this.cart.map(item => (item.weight || .5) * item.qty);
+                this.delivery_charge = this.getSteadfastDeliveryCharge(type === 'inside_city', weights);
+            }
         },
     });
 });

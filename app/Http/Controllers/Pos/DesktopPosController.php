@@ -404,6 +404,7 @@ class DesktopPosController extends Controller
                     'variant_values' => $variant_values,
                     'variant_stocks' => $variant_stocks,
                     'image_url' => $this->productImageUrl($product->image),
+                    'weight' => $product->weight ?? $product->shipping_info['weight'] ?? 0.5, // default 0.5kg
                 ];
             });
 
