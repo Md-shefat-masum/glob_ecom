@@ -2,6 +2,7 @@
 
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\GeneralInfoController;
+use App\Http\Controllers\Courier\CourierManagementController;
 
 Route::group([
         'middleware' => [
@@ -33,5 +34,10 @@ Route::group([
     Route::post('/update/tawk/chat/info', [GeneralInfoController::class, 'updateTawkChat'])->name('UpdateTawkChat');
     Route::post('/update/crisp/chat/info', [GeneralInfoController::class, 'updateCrispChat'])->name('UpdateCrispChat');
     Route::get('/change/guest/checkout/status', [GeneralInfoController::class, 'changeGuestCheckoutStatus'])->name('ChangeGuestCheckoutStatus');
+
+    // Courier management (view + API for Vue)
+    Route::get('/courier-management', [CourierManagementController::class, 'index'])->name('courier-management.index');
+    Route::get('/courier-management/methods', [CourierManagementController::class, 'getMethods'])->name('courier-management.methods');
+    Route::put('/courier-management/methods/{id}', [CourierManagementController::class, 'update'])->name('courier-management.methods.update');
 
 });
