@@ -1177,7 +1177,7 @@
                                         @{{ courier_method.title }}
                                     </label>
                                 </div>
-                                <div class="mb-2" v-if="delivery_info.courier_method_title && delivery_info.courier_method_title.toLowerCase().includes('steadfast')">
+                                <div class="mb-2" v-if="delivery_info.courier_method_title">
                                     <label for="courier_info_address">Courier Address</label>
                                     <textarea id="courier_info_address" v-model="selectedCustomer.address" class="form-control" rows="2" ></textarea>
                                 </div>

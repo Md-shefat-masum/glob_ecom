@@ -231,7 +231,7 @@ class SteadfastController extends Controller
             'invoice' => $invoice,
             'recipient_name' => $recipientName,
             'recipient_phone' => $recipientPhone,
-            'recipient_address' => $recipientAddress,
+            'recipient_address' => substr($order->address, 0, 220),
             'cod_amount' => (float) $order->total,
             'note' => $order->note ?? '',
             'item_description' => $itemDescription,

@@ -43,11 +43,11 @@ class PathaoController extends BaseController
     {
         try {
             $cred_data = [
-                "client_id" => env('PATHAO_CLIENT_ID', 'BDbDQKkdl2'),
-                "client_secret" => env('PATHAO_CLIENT_SECRET', 'EQG1azFuJ09e5QgSFXWHDmN9tJEtp5f2T9LfjMFT'),
+                "client_id" => env('PATHAO_CLIENT_ID', ''),
+                "client_secret" => env('PATHAO_CLIENT_SECRET', ''),
                 "grant_type" => "password",
-                "username" => env('PATHAO_USERNAME', 'wardahlife01@gmail.com'),
-                "password" => env('PATHAO_PASSWORD', 'Hamedata@4142')
+                "username" => env('PATHAO_USERNAME', ''),
+                "password" => env('PATHAO_PASSWORD', '')
             ];
 
             $tokenResponse = Http::post("{$this->baseUrl}/issue-token", $cred_data);

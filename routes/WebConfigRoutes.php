@@ -3,6 +3,7 @@
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\GeneralInfoController;
 use App\Http\Controllers\Courier\CourierManagementController;
+use App\Http\Controllers\Courier\PathaoController;
 use App\Http\Controllers\Courier\SteadfastController;
 
 Route::group([
@@ -53,4 +54,6 @@ Route::group([
 
 });
 
+// Public courier status routes (no auth)
 Route::get('/get-steadfast-order-status/{stead_fast_id}', [SteadfastController::class, 'getOrderStatus'])->name('steadfast.order-status');
+Route::get('/get-pathao-order-status/{pathao_id}', [PathaoController::class, 'getOrderStatus'])->name('pathao.order-status');

@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Controllers\Account\Models\AcAccount;
 use App\Http\Controllers\Account\Models\AcTransaction;
 use App\Http\Controllers\Account\Models\DbPaymentType;
+use App\Http\Controllers\Courier\PathaoController;
 use App\Http\Controllers\Courier\SteadfastController;
 use App\Http\Controllers\Customer\Models\Customer;
 use App\Http\Controllers\Inventory\Models\ProductWarehouse;
@@ -1234,6 +1235,8 @@ class DesktopPosController extends Controller
         $deliveryInfo = $request->get('delivery_info', []) ?? [];
         $orderStatus = $request->get('order_status', 'quotation');
 
+        $customerAddress = request()->get('customer')['address'] ?? null;
+
         $grandTotal = (float) data_get($totals, 'grand_total', 0);
         $paymentTotal = 0;
         foreach ($paymentLines as $line) {
@@ -1250,6 +1253,10 @@ class DesktopPosController extends Controller
 
         if ($customerId) {
             $customer = Customer::findOrFail($customerId);
+            if($customerAddress) {
+                $customer->address = $customerAddress;
+                $customer->save();
+            }
             if ($useAdvance) {
                 // Use provided advance_amount if available, otherwise calculate automatically
                 $providedAdvanceAmount = data_get($payload, 'advance_amount', 0);
@@ -1305,6 +1312,7 @@ class DesktopPosController extends Controller
             $order->total = $grandTotal;
             $order->paid_amount = $totalPaid;
             $order->due_amount = $grandTotal - $totalPaid;
+            $order->address = $customerAddress;
             $order->payments = array_merge(
                 $this->paymentsArrayFromLines($paymentLines),
                 [
@@ -1395,7 +1403,6 @@ class DesktopPosController extends Controller
                     }
                     $product->decrement('stock', $item['qty']);
 
-
                     if ($variantId) {
                         ProductStock::where('product_id', $product->id)
                             ->where('product_warehouse_id', $warehouseId)
@@ -1459,7 +1466,10 @@ class DesktopPosController extends Controller
             }
 
             if ($deliveryInfo['courier_method']) {
-                if(strtolower($deliveryInfo['courier_method_title']) == 'pathao') {}
+                if(strtolower($deliveryInfo['courier_method_title']) == 'pathao') {
+                    $pathao = new PathaoController();
+                    $pathao->createOrder($order,$deliveryInfo['courier_method']);
+                }
                 if(strtolower($deliveryInfo['courier_method_title']) == 'steadfast') {
                     $steadfast = new SteadfastController();
                     $steadfast->createOrder($order,$deliveryInfo['courier_method']);

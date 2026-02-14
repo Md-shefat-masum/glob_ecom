@@ -584,6 +584,7 @@ Vue.component('pos-customer-manage', {
                     email: customerData.email || '',
                     address: customerData.address || '',
                 };
+                this.form_customer = customerData;
                 let billingAddresses = customerData.billing_address && Array.isArray(customerData.billing_address) 
                     ? customerData.billing_address 
                     : (customerData.billing_address ? JSON.parse(customerData.billing_address) : [{ full_name: '', phone: '', address: '', district: null }]);

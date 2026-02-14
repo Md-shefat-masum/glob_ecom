@@ -641,6 +641,8 @@ document.addEventListener('DOMContentLoaded', function () {
                 this.recalcItem(it);
             },
             recalcTotals() {
+                this.setDeliveryChargeByType('no_recalc');
+
                 const subtotal = this.cart.reduce((sum, it) => sum + Number(it.final_price || 0), 0);
                 let discountAmount = 0;
                 if (this.totals.discount.type === 'percent') {
@@ -705,7 +707,7 @@ document.addEventListener('DOMContentLoaded', function () {
                     }
                 }
 
-                this.setDeliveryChargeByType();
+                
             },
 
             // COUPON
@@ -1420,10 +1422,13 @@ document.addEventListener('DOMContentLoaded', function () {
 
                 return total;
             },
-            setDeliveryChargeByType() {
+            setDeliveryChargeByType(is_recalc = 1) {
                 const type = this.delivery_info.delivery_charge_type;
                 const weights = this.cart.map(item => (item.weight || .5) * item.qty);
                 this.delivery_charge = this.getSteadfastDeliveryCharge(type === 'inside_city', weights);
+                if(is_recalc != 'no_recalc') {
+                    this.recalcTotals();
+                }
             }
         },
     });
