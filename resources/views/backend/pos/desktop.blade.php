@@ -1115,20 +1115,7 @@
                                 <label for="invoiced" class="d-flex align-items-center" style="gap: 5px;"><input type="radio" id="invoiced" name="order_status" value="invoiced" v-model="order_status"> Invoiced</label>
                                 <label for="delivered" class="d-flex align-items-center" style="gap: 5px;"><input type="radio" id="delivered" name="order_status" value="delivered" v-model="order_status"> Delivered</label>
                             </div>
-                            <div class="d-flex align-items-center" style="gap: 5px;">
-                                <label class="font-weight-bold pr-2">Courier Method:</label>
-                                <label for="courier_method_none" class="d-flex align-items-center" style="gap: 5px;">
-                                    <input type="radio" id="courier_method_none" name="courier_method" value=""> None
-                                </label>
-                                <label :for="'courier_method_' + courier_method.id" v-for="courier_method in courierMethods" :key="courier_method.id" class="d-flex align-items-center" style="gap: 5px;">
-                                    <input type="radio" :id="'courier_method_' + courier_method.id" 
-                                        :name="'courier_method'" 
-                                        :value="courier_method.id" 
-                                        v-model="delivery_info.courier_method"
-                                        @change="setCourierMethod(courier_method)"> 
-                                    @{{ courier_method.title }}
-                                </label>
-                            </div>
+                            
                             <div>
                                 <label for="delivery_info_checkbox">
                                     <input type="checkbox" id="delivery_info_checkbox" >
@@ -1136,6 +1123,7 @@
                                 </label>
                             </div>
                             <div class="delivery_info_wrapper">
+                                
                                 <div class="mb-2">
                                     <label for="delivery_method">Delivery Method</label>
                                     <select id="delivery_method" v-model="delivery_info.delivery_method" class="form-control">
@@ -1164,6 +1152,24 @@
                                 <div class="mb-2">
                                     <label for="order_note">Note/Instruction</label>
                                     <textarea id="order_note" class="form-control" rows="2" v-model="delivery_info.order_note"></textarea>
+                                </div>
+                                <div class="d-flex align-items-center mb-2" style="gap: 5px;">
+                                    <label class="font-weight-bold pr-2">Courier Method:</label>
+                                    <label for="courier_method_none" class="d-flex align-items-center" style="gap: 5px;">
+                                        <input type="radio" id="courier_method_none" name="courier_method" value=""> None
+                                    </label>
+                                    <label :for="'courier_method_' + courier_method.id" v-for="courier_method in courierMethods" :key="courier_method.id" class="d-flex align-items-center" style="gap: 5px;">
+                                        <input type="radio" :id="'courier_method_' + courier_method.id" 
+                                            :name="'courier_method'" 
+                                            :value="courier_method.id" 
+                                            v-model="delivery_info.courier_method"
+                                            @change="setCourierMethod(courier_method)"> 
+                                        @{{ courier_method.title }}
+                                    </label>
+                                </div>
+                                <div class="mb-2" v-if="delivery_info.courier_method_title && delivery_info.courier_method_title.toLowerCase().includes('steadfast')">
+                                    <label for="courier_info_address">Courier Address</label>
+                                    <textarea id="courier_info_address" v-model="selectedCustomer.address" class="form-control" rows="2" ></textarea>
                                 </div>
                             </div>
                         </div>

@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Controllers\Account\Models\AcAccount;
 use App\Http\Controllers\Account\Models\AcTransaction;
 use App\Http\Controllers\Account\Models\DbPaymentType;
+use App\Http\Controllers\Courier\SteadfastController;
 use App\Http\Controllers\Customer\Models\Customer;
 use App\Http\Controllers\Inventory\Models\ProductWarehouse;
 use App\Http\Controllers\Inventory\Models\ProductWarehouseRoom;
@@ -1454,6 +1455,14 @@ class DesktopPosController extends Controller
 
                 /** auth user target update */
                 $this->updateUserTarget($order);
+            }
+
+            if ($deliveryInfo['courier_method']) {
+                if(strtolower($deliveryInfo['courier_method_title']) == 'pathao') {}
+                if(strtolower($deliveryInfo['courier_method_title']) == 'steadfast') {
+                    $steadfast = new SteadfastController();
+                    $steadfast->createOrder($order,$deliveryInfo['courier_method']);
+                }
             }
 
             DB::commit();

@@ -16,6 +16,7 @@ class ProductOrder extends Model
         'payments' => 'array',
         'request_data' => 'array',
         'delivery_info' => 'array',
+        'courier_info' => 'array',
     ];
 
     public function order_products()

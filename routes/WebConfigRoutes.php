@@ -3,6 +3,7 @@
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\GeneralInfoController;
 use App\Http\Controllers\Courier\CourierManagementController;
+use App\Http\Controllers\Courier\SteadfastController;
 
 Route::group([
         'middleware' => [
@@ -40,4 +41,16 @@ Route::group([
     Route::get('/courier-management/methods', [CourierManagementController::class, 'getMethods'])->name('courier-management.methods');
     Route::put('/courier-management/methods/{id}', [CourierManagementController::class, 'update'])->name('courier-management.methods.update');
 
+    // Steadfast API proxy routes (auth required)
+    // Route::get('/get-steadfast-order-status/{stead_fast_id}', [SteadfastController::class, 'getOrderStatus'])->name('steadfast.order-status');
+    Route::get('/steadfast/get_balance', [SteadfastController::class, 'getBalance'])->name('steadfast.balance');
+    Route::post('/steadfast/create_return_request', [SteadfastController::class, 'createReturnRequest'])->name('steadfast.create-return-request');
+    Route::get('/steadfast/get_return_request/{id}', [SteadfastController::class, 'getReturnRequest'])->name('steadfast.return-request');
+    Route::get('/steadfast/get_return_requests', [SteadfastController::class, 'getReturnRequests'])->name('steadfast.return-requests');
+    Route::get('/steadfast/payments', [SteadfastController::class, 'getPayments'])->name('steadfast.payments');
+    Route::get('/steadfast/payments/{payment_id}', [SteadfastController::class, 'getPayment'])->name('steadfast.payment');
+    Route::get('/steadfast/police_stations', [SteadfastController::class, 'getPoliceStations'])->name('steadfast.police-stations');
+
 });
+
+Route::get('/get-steadfast-order-status/{stead_fast_id}', [SteadfastController::class, 'getOrderStatus'])->name('steadfast.order-status');
