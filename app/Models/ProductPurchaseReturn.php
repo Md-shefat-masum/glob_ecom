@@ -20,4 +20,14 @@ class ProductPurchaseReturn extends Model
     {
         return $this->belongsTo(User::class, 'creator');
     }
+
+    public function supplier()
+    {
+        return $this->belongsTo(\App\Http\Controllers\Inventory\Models\ProductSupplier::class, 'product_supplier_id');
+    }
+
+    public function warehouse()
+    {
+        return $this->belongsTo(\App\Http\Controllers\Inventory\Models\ProductWarehouse::class, 'product_warehouse_id');
+    }
 }

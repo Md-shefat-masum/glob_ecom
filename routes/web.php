@@ -53,6 +53,9 @@ require __DIR__.'/stockAdjustmentRoutes.php';
 //analytics routes
 require __DIR__.'/analyticsRoutes.php';
 
+//report routes
+require __DIR__.'/reportRoutes.php';
+
 // desktop POS routes
 require __DIR__.'/pos_desktop_route.php';
 

@@ -852,6 +852,13 @@
         </a>
     </li>
 
+    <li>
+        <a href="{{ url('/app-report') }}" data-active-paths="{{ url('/app-report') }}">
+            <i class="feather-file-text"></i>
+            <span>Reports</span>
+        </a>
+    </li>
+
     {{-- LOGOUT --}}
     <hr style="border-color: #c8c8c836; margin-top: 12px; margin-bottom: 12px;">
 

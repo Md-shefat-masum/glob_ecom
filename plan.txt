@@ -1,40 +1,738 @@
-much better can do the design like this?
+# Reporting plan
 
-<div>
-    <div>
-        headings
-    </div>
-    <div>
-        12 mar 2026
-        <div class="pl-5">
-            Payment Code	
-            <div class="pl-5">
-                Transaction Type	
-                <div class="pl-5">
-                    <div class="{{ if credit ? pl-5 : '' }}">
-                        particular
-                    </div>
-                    <div style="width: 150px">
-                        debit amount
-                    </div>
-                    <div style="width: 150px">
-                        credit amount
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
+ajax endpoint:
+    prefix: /report/{report path}
+    controller: app/Http/Controllers/Report/ReportController
+    actions: app/Http/Controllers/Report/Actions/
+    views: resources/views/backend/report
+
+---
+
+## UI Pattern & Routing
+
+### Sidebar Navigation
+- Add new menu item "Reports" in sidebar (`resources/views/backend/sidebar.blade.php`)
+- Link: `/app-report` (main reports page)
+
+### Main Report Page Layout
+
+**Route:** `GET /app-report/{report-path?}`  
+**Controller:** `ReportController@index($reportPath = null)`  
+**View:** `resources/views/backend/report/index.blade.php`
+
+**Layout Structure:**
+```
+┌─────────────────────────────────────────────────────────┐
+│  Reports                                                 │
+├──────────────────┬──────────────────────────────────────┤
+│                  │                                      │
+│  Left Sidebar    │  Right Content Area                  │
+│  (Report Links)  │  (Results / Filters)                 │
+│                  │                                      │
+│  Group 1: Sales  │  ┌──────────────────────────────┐   │
+│  • Sales Report  │  │ Filter Form (if needed)     │   │
+│  • Product Wise   │  └──────────────────────────────┘   │
+│  • Single Product │                                      │
+│  • Ecommerce      │  ┌──────────────────────────────┐   │
+│  • Promotional    │  │ Results Table (Vue rendered) │   │
+│  • Salesman       │  │                              │   │
+│  • Customer Sales │  │                              │   │
+│  • Location       │  └──────────────────────────────┘   │
+│                  │                                      │
+│  Group 2: Purchase│  [Export PDF] [Export CSV]          │
+│  • Purchase       │                                      │
+│  • Product Wise   │                                      │
+│  • Single Product │                                      │
+│  • Supplier Due   │                                      │
+│  • Returns        │                                      │
+│                  │                                      │
+│  Group 3: Stock   │                                      │
+│  • In Stock       │                                      │
+│  • Out of Stock   │                                      │
+│  • Low Stock      │                                      │
+│  • Per Warehouse  │                                      │
+│  • Monthly        │                                      │
+│                  │                                      │
+│  Group 4: Finance │                                      │
+│  • Profit & Loss  │                                      │
+│  • Account Head   │                                      │
+│  • Dashboard      │                                      │
+│  • Expense        │                                      │
+│  • Payment        │                                      │
+│                  │                                      │
+│  Group 5: Customer│                                      │
+│  • Due Customer   │                                      │
+│  • Advance        │                                      │
+│  • Returns        │                                      │
+│                  │                                      │
+│  Group 6: Target  │                                      │
+│  • Sales Target   │                                      │
+│                  │                                      │
+└──────────────────┴──────────────────────────────────────┘
+```
+
+### Vue.js v2 Implementation
+
+**Component:** `resources/views/backend/report/index.blade.php`
+
+**Initial Load:**
+- Load minimal design page with left sidebar showing all report links grouped
+- Right side shows empty state or welcome message
+- Vue app initialized but no data loaded yet
+
+**On Click Left Sidebar Link:**
+1. Update URL: `/app-report/{report-path}` (e.g. `/app-report/sales`)
+2. Vue router or manual URL update triggers route change
+3. Extract `report-path` from URL
+4. Call AJAX endpoint: `GET /report/{report-path}/data?{filters}` (or use existing generate endpoint)
+5. Show loading state in right content area
+6. On success: render data in table using Vue
+7. On error: show error message
+
+**Vue App Structure:**
+```javascript
+new Vue({
+    el: '#reportApp',
+    data: {
+        activeReport: null,
+        reportData: null,
+        filters: {},
+        loading: false,
+        error: null
+    },
+    mounted() {
+        // Get report-path from URL on initial load
+        const path = window.location.pathname.split('/app-report/')[1] || null;
+        if (path) {
+            this.loadReport(path);
+        }
+    },
+    methods: {
+        loadReport(reportPath) {
+            this.activeReport = reportPath;
+            this.loading = true;
+            this.error = null;
+            
+            // Update URL without reload
+            window.history.pushState({}, '', `/app-report/${reportPath}`);
+            
+            // Call AJAX
+            axios.get(`/report/${reportPath}/data`, { params: this.filters })
+                .then(response => {
+                    this.reportData = response.data.data || response.data;
+                    this.loading = false;
+                })
+                .catch(error => {
+                    this.error = error.response?.data?.message || 'Failed to load report';
+                    this.loading = false;
+                });
+        },
+        applyFilters() {
+            if (this.activeReport) {
+                this.loadReport(this.activeReport);
+            }
+        },
+        exportPdf() {
+            if (!this.activeReport) return;
+            const params = new URLSearchParams(this.filters).toString();
+            window.open(`/report/${this.activeReport}/export/pdf?${params}`, '_blank');
+        },
+        exportCsv() {
+            if (!this.activeReport) return;
+            const params = new URLSearchParams(this.filters).toString();
+            window.open(`/report/${this.activeReport}/export/csv?${params}`, '_blank');
+        }
+    }
+});
+```
+
+### Routes
+
+**Main Page Route:**
+```
+GET /app-report/{report-path?} -> ReportController@index($reportPath = null)
+```
+
+**Data Endpoint (for AJAX):**
+```
+GET /report/{report-path}/data -> ReportController@getData($reportPath)
+```
+- Returns JSON: `{ success: true, data: [...], summary: {...} }`
+- Uses same Action classes as generate methods
+- Can reuse existing generate endpoints or create dedicated data endpoints
+
+**Export Routes (unchanged):**
+```
+GET /report/{report-path}/export/pdf -> ReportController@exportPdf($reportPath)
+GET /report/{report-path}/export/csv -> ReportController@exportCsv($reportPath)
+```
+
+### View Structure
+
+**`resources/views/backend/report/index.blade.php`:**
+- Extends `backend.master`
+- Left sidebar: list of report links grouped by category
+- Right content: Vue app container (`#reportApp`)
+  - Filter form (conditionally shown based on active report)
+  - Results table (Vue rendered)
+  - Export buttons (PDF, CSV)
+- Includes Vue 2 CDN and axios
+- Includes report-specific Vue component or inline template
+
+### Left Sidebar Links
+
+Each link triggers: `@click="loadReport('sales')"` or uses `<a href="/app-report/sales">` with Vue preventing default and handling.
+
+**Example sidebar structure:**
+```blade
+<div class="report-sidebar">
+    <h5>Group 1: Sales & Revenue</h5>
+    <ul>
+        <li><a href="#" @click.prevent="loadReport('sales')">Sales Report</a></li>
+        <li><a href="#" @click.prevent="loadReport('sales-product-wise')">Sales Product Wise</a></li>
+        <!-- ... -->
+    </ul>
+    
+    <h5>Group 2: Purchase & Procurement</h5>
+    <ul>
+        <li><a href="#" @click.prevent="loadReport('purchase')">Purchase Report</a></li>
+        <!-- ... -->
+    </ul>
+    <!-- ... more groups ... -->
 </div>
+```
 
-ex:
+---
 
-Date	Payment Code	Transaction Type	Particulars	                        Debit	           Credit
-2026-01-14	—	
-    Opening balance	—                                                           0.00	            0.00
-2026-02-14	
-    PC-2602140001	
-        PURCHASE_CREATE	
-            Inventory — Purchase PO10001 ref - Stock added	                    12,000.00	
-            Accounts Payable — Purchase PO10001 ref - Supplier payment due		12,000.00	
-                Bank Account — POS Sale - Debit Entry for Bank	                                    30.00	
-                BCash — POS Sale - Debit Entry for Bkash	                                        1,870.00	
+## Report Groups
+
+Reports are organized into logical groups for easy navigation and understanding.
+
+---
+
+## Group 1: Sales & Revenue Reports
+
+**Purpose:** Track sales performance, revenue, and order status across different channels.
+
+1. **Sales report (date to date)**
+   - Source: ProductOrder (sale_date, total, paid_amount, due_amount, order_source)
+   - Filters: date range, optional warehouse, order_status (quotation/invoiced/delivered)
+   - Output: summary totals, list of orders
+   - Export: PDF, CSV
+
+2. **Sales report — product wise (date range)**
+   - Source: ProductOrderProduct + ProductOrder (sale_date in range)
+   - Group by product: qty sold, revenue, optional COGS
+   - Only products that had at least one sale in range
+   - Export: PDF, CSV
+
+3. **Single product — sale report**
+   - One product: all sales (order, date, qty, value) in date range
+   - Export: PDF, CSV
+
+4. **Ecommerce order report**
+   - Source: ProductOrder where order_source in ('ecommerce', 'website')
+   - Filters: date range
+   - Output: counts and amounts by order_status — pending, completed (invoiced/delivered), returned (is_returned or ProductOrderReturn); optional list of orders
+   - Ecommerce profit/loss: revenue (total) − COGS − expenses attributable to ecommerce orders in period (from ac_transactions or derived)
+   - Export: PDF, CSV
+
+5. **Promotional sales report (coupon orders)**
+   - Source: ProductOrder where a coupon/promo was used (e.g. coupon_code stored on order, or request_data/totals with coupon amount > 0; if no column, add coupon_code to product_orders when applying coupon)
+   - Filters: date range, optional coupon code
+   - Output: count of orders, total sales, total discount/coupon amount, optional list of orders with coupon code and discount
+   - Export: PDF, CSV
+
+6. **Salesman-wise sales report**
+   - Source: ProductOrder grouped by creator (user_id); join User for name
+   - Filters: date range, optional warehouse, optional order_source (e.g. pos only)
+   - Output: per salesman (creator): order count, subtotal/total sum, optional paid/due; sort by total desc
+   - Export: PDF, CSV
+
+7. **Customer sales report**
+   - Per customer: total sales (ProductOrder total), total paid, total due, count of orders in date range
+   - Optional: list of orders per customer
+   - Export: PDF, CSV
+
+8. **Location report (e.g. zila / district wise)**
+   - If delivery/billing has district_id or division_id: group sales (or orders) by district/division
+   - Source: ProductOrder + BillingAddress/ShippingInfo or delivery_info (if district/division stored)
+   - Output: region name, order count, total sales
+   - Export: PDF, CSV
+
+---
+
+## Group 2: Purchase & Procurement Reports
+
+**Purpose:** Monitor purchases, supplier relationships, and procurement costs.
+
+9. **Purchase report (date to date)**
+   - Source: ProductPurchaseOrder (date, total, product_warehouse_id, product_supplier_id)
+   - Filters: date range, warehouse, supplier
+   - Output: summary totals, list of purchases
+   - Export: PDF, CSV
+
+10. **Purchase report — product wise (date range)**
+    - Source: ProductPurchaseOrderProduct + ProductPurchaseOrder (date in range)
+    - Group by product: qty purchased, amount
+    - Only products that had at least one purchase in range
+    - Export: PDF, CSV
+
+11. **Single product — purchase report**
+    - One product: all purchases (order, date, qty, value) in date range
+    - Export: PDF, CSV
+
+12. **Supplier due report**
+    - Source: ProductPurchaseOrder (total) − ProductPurchaseReturn (total) − DbPurchasePayment (payment)
+    - Per supplier: total purchase, total return, total paid, due balance
+    - Optional: ageing (overdue by days)
+    - Export: PDF, CSV
+
+13. **Purchase returns report**
+    - Source: ProductPurchaseReturn in date range
+    - Output: list of returns with supplier, product, qty, amount
+    - Export: PDF, CSV
+
+---
+
+## Group 3: Inventory & Stock Reports
+
+**Purpose:** Track stock levels, movement, and warehouse management.
+
+14. **In-stock report**
+    - Source: ProductStock (qty) + Product (name, sku) per warehouse; or product.stock
+    - Filters: warehouse, category, product
+    - Output: product, warehouse, qty, optional value (qty × cost)
+    - Export: PDF, CSV
+
+15. **Out-of-stock report**
+    - Products (or ProductStock per warehouse) where stock/qty = 0 and product is active/saleable
+    - Export: PDF, CSV
+
+16. **Low stock report**
+    - Products (or ProductStock) where qty &lt; threshold (e.g. 10); threshold configurable
+    - Optional: by warehouse
+    - Export: PDF, CSV
+
+17. **Product report per warehouse**
+    - Stock and/or movement summary per product per warehouse (ProductStock, ProductWarehouse)
+    - Optional: opening, in, out, waste, closing for a period
+    - Export: PDF, CSV
+
+18. **Monthly purchase &amp; sales (product wise)**
+    - Per product (and optionally per warehouse): previous stock, stock in (purchase), sold (sales), waste (if tracked), current stock
+    - Period: month; can add year selector
+    - Export: PDF, CSV
+
+---
+
+## Group 4: Financial & Accounting Reports
+
+**Purpose:** Financial performance, profit/loss, and account-level analysis.
+
+19. **Profit & loss (P&amp;L)**
+    - Source: ac_transactions + AcAccount (revenue vs expense by account head / event)
+    - Or derived: sales revenue (from ProductOrder / ac_transactions) − COGS − expenses
+    - Period: date range; compare to previous period optional
+    - Export: PDF, CSV
+
+20. **Account head wise report**
+    - Source: ac_transactions + ac_accounts
+    - By account (or account type): debit/credit totals, balance for date range
+    - Optional: ledger-style lines per account
+    - Export: PDF, CSV
+
+21. **Finance / summary dashboard**
+    - Sections (adapt to your schema):
+      - Top N warehouses by sales (ProductOrder grouped by product_warehouse_id, sum total)
+      - Top N warehouses by purchase (ProductPurchaseOrder grouped by product_warehouse_id)
+      - Top selling products (ProductOrderProduct sum qty, order by desc) — week / month / year
+      - Cash/bank balance or key account balances from ac_accounts/ac_transactions
+    - Export: PDF (dashboard view)
+
+22. **Expense summary by category**
+    - Source: AccountExpense / ac_transactions by expense category
+    - Filters: date range, category
+    - Output: total expenses by category
+    - Export: PDF, CSV
+
+23. **Payment collection report**
+    - Payments received in date range by mode/customer
+    - Source: db_customer_payments or ProductOrder payments
+    - Export: PDF, CSV
+
+---
+
+## Group 5: Customer & Supplier Management Reports
+
+**Purpose:** Track customer payments, advances, dues, and supplier relationships.
+
+24. **Due customer report**
+    - Source: ProductOrder (customer_id, due_amount) where due_amount &gt; 0 and status = active
+    - Per customer: total due, list of orders with due
+    - Optional: ageing by order date
+    - Export: PDF, CSV
+
+25. **Customers with advance**
+    - Source: db_customer_payments (payment_type advance/credit) − adjustments; or customers.available_advance
+    - List customers with available_advance &gt; 0 and amount
+    - Export: PDF, CSV
+
+26. **Sales returns report**
+    - Source: ProductOrderReturn in date range
+    - Output: list of returns with customer, product, qty, amount
+    - Export: PDF, CSV
+
+---
+
+## Group 6: Performance & Target Reports
+
+**Purpose:** Track sales team performance and target achievement.
+
+27. **Sales target report (date to date)**
+    - Source: UserSalesTarget + User; filter by date range (target records where date between from and to)
+    - Output: per user: target (sum of target), completed (sum of completed), remains (sum of remains), achievement % (completed/target*100), extra (completed − target if positive) or shortfall (target − completed if negative); who achieved vs not
+    - Optional: daily breakdown or link to existing SalesTargetController analytics
+    - Export: PDF, CSV
+
+---
+
+## Export functionality
+
+All reports support two export formats:
+
+### PDF Export
+- **Format:** A4 size, 10px margin on all sides
+- **Library:** Use DomPDF, Snappy (wkhtmltopdf), or Laravel PDF (e.g. barryvdh/laravel-dompdf)
+- **Route pattern:** `GET /report/{report-slug}/export/pdf?{filters}`
+- **Filename:** `{d-M-Y}-{report-title}.pdf` (e.g. `10-Feb-2026-Sales-Report.pdf`)
+- **Controller method:** `exportPdf()` in ReportController — calls Action, renders PDF view, returns PDF response
+- **View:** Create PDF-specific blade templates in `resources/views/backend/report/pdf/` (e.g. `sales_report_pdf.blade.php`) with A4 layout and 10px margin styling
+
+### CSV Export
+- **Format:** Standard CSV (comma-separated, UTF-8)
+- **Route pattern:** `GET /report/{report-slug}/export/csv?{filters}`
+- **Filename:** `{d-M-Y}-{report-title}.csv` (e.g. `10-Feb-2026-Sales-Report.csv`)
+- **Controller method:** `exportCsv()` in ReportController — calls Action, formats data as CSV, returns CSV download response
+- **Headers:** Include column headers in first row
+- **Data:** Flatten nested data (e.g. order items on separate rows or comma-separated in one cell)
+
+### Export implementation pattern
+
+```php
+// In ReportController
+public function exportPdf(Request $request, $reportSlug) {
+    $filters = $request->all();
+    $action = $this->getAction($reportSlug);
+    $data = $action->run($filters);
+    $title = $action->getTitle();
+    $filename = date('d-M-Y') . '-' . str_replace(' ', '-', $title) . '.pdf';
+    
+    $pdf = PDF::loadView("backend.report.pdf.{$reportSlug}_pdf", compact('data', 'filters', 'title'))
+        ->setPaper('a4')
+        ->setOption('margin-top', 10)
+        ->setOption('margin-bottom', 10)
+        ->setOption('margin-left', 10)
+        ->setOption('margin-right', 10);
+    
+    return $pdf->download($filename);
+}
+
+public function exportCsv(Request $request, $reportSlug) {
+    $filters = $request->all();
+    $action = $this->getAction($reportSlug);
+    $data = $action->run($filters);
+    $title = $action->getTitle();
+    $filename = date('d-M-Y') . '-' . str_replace(' ', '-', $title) . '.csv';
+    
+    $headers = [
+        'Content-Type' => 'text/csv',
+        'Content-Disposition' => "attachment; filename=\"{$filename}\"",
+    ];
+    
+    $callback = function() use ($data, $action) {
+        $file = fopen('php://output', 'w');
+        fputcsv($file, $action->getCsvHeaders());
+        foreach ($action->formatForCsv($data) as $row) {
+            fputcsv($file, $row);
+        }
+        fclose($file);
+    };
+    
+    return response()->stream($callback, 200, $headers);
+}
+```
+
+---
+
+## Implementation notes
+
+- Use ProductOrder for POS and other order_source; filter by sale_date (or created_at) for date range.
+- Use ProductPurchaseOrder for purchase; filter by date.
+- Supplier due: same formula as in SupplierPaymentController (purchase − return − paid).
+- Customer due: ProductOrder.due_amount; advance from db_customer_payments / available_advance.
+- Stock: ProductStock (per warehouse/variant) or Product.stock depending on your usage; low/out stock from same source.
+- All reports: add date range (and optionally warehouse) where relevant; return JSON for AJAX or HTML view as per existing ReportController pattern.
+- Ecommerce: filter ProductOrder by order_source in ('ecommerce', 'website'). Order status: use order_status (pending/invoiced/delivered) and is_returned or ProductOrderReturn for returned.
+- Promotional sales: identify orders that used a coupon (store coupon_code on product_orders when coupon is applied, or use request_data/payments JSON; then filter where coupon_code is not null or coupon amount > 0).
+- Salesman: ProductOrder.creator = user_id; join users for name. Sales target: UserSalesTarget (user_id, date, target, completed, remains); aggregate by user in date range.
+- Export: All reports support PDF (A4, 10px margin) and CSV export. Add export buttons in report view pages. Export routes use same filters as generate endpoints.
+
+---
+
+## Endpoints, controller & action plan
+
+Routes live under prefix `/report`. Use same middleware as existing report routes (e.g. auth, CheckUserType).  
+GET = show form/page; POST or GET with params = generate (AJAX JSON or HTML fragment).
+
+| # | Endpoint (path) | Method | ReportController action | Action class (Report/Actions/) | View (backend/report/) | Export |
+|---|-----------------|--------|-------------------------|--------------------------------|-------------------------|--------|
+| Main | app-report/{report-path?} | GET | index($reportPath) | - | index.blade.php (Vue app) | - |
+| 1 | sales | GET | getData('sales') | SalesReportAction | Rendered by Vue in index.blade.php | PDF, CSV |
+| 2 | sales-product-wise | GET | getData('sales-product-wise') | SalesProductWiseReportAction | Rendered by Vue | PDF, CSV |
+| 3 | single-product-sale | GET | getData('single-product-sale') | SingleProductSaleReportAction | Rendered by Vue | PDF, CSV |
+| 4 | ecommerce-order | GET | getData('ecommerce-order') | EcommerceOrderReportAction | Rendered by Vue | PDF, CSV |
+| 5 | promotional-sales | GET | getData('promotional-sales') | PromotionalSalesReportAction | Rendered by Vue | PDF, CSV |
+| 6 | salesman-sales | GET | getData('salesman-sales') | SalesmanSalesReportAction | Rendered by Vue | PDF, CSV |
+| 7 | customer-sales | GET | getData('customer-sales') | CustomerSalesReportAction | Rendered by Vue | PDF, CSV |
+| 8 | location | GET | getData('location') | LocationReportAction | Rendered by Vue | PDF, CSV |
+| 9 | purchase | GET | getData('purchase') | PurchaseReportAction | Rendered by Vue | PDF, CSV |
+| 10 | purchase-product-wise | GET | getData('purchase-product-wise') | PurchaseProductWiseReportAction | Rendered by Vue | PDF, CSV |
+| 11 | single-product-purchase | GET | getData('single-product-purchase') | SingleProductPurchaseReportAction | Rendered by Vue | PDF, CSV |
+| 12 | supplier-due | GET | getData('supplier-due') | SupplierDueReportAction | Rendered by Vue | PDF, CSV |
+| 13 | purchase-returns | GET | getData('purchase-returns') | PurchaseReturnsReportAction | Rendered by Vue | PDF, CSV |
+| 14 | in-stock | GET | getData('in-stock') | InStockReportAction | Rendered by Vue | PDF, CSV |
+| 15 | out-of-stock | GET | getData('out-of-stock') | OutOfStockReportAction | Rendered by Vue | PDF, CSV |
+| 16 | low-stock | GET | getData('low-stock') | LowStockReportAction | Rendered by Vue | PDF, CSV |
+| 17 | product-per-warehouse | GET | getData('product-per-warehouse') | ProductPerWarehouseReportAction | Rendered by Vue | PDF, CSV |
+| 18 | monthly-stock-movement | GET | getData('monthly-stock-movement') | MonthlyStockMovementReportAction | Rendered by Vue | PDF, CSV |
+| 19 | profit-loss | GET | getData('profit-loss') | ProfitLossReportAction | Rendered by Vue | PDF, CSV |
+| 20 | account-head-wise | GET | getData('account-head-wise') | AccountHeadWiseReportAction | Rendered by Vue | PDF, CSV |
+| 21 | finance-dashboard | GET | getData('finance-dashboard') | FinanceDashboardReportAction | Rendered by Vue | PDF |
+| 22 | expense-summary | GET | getData('expense-summary') | ExpenseSummaryAction | Rendered by Vue | PDF, CSV |
+| 23 | payment-collection | GET | getData('payment-collection') | PaymentCollectionAction | Rendered by Vue | PDF, CSV |
+| 24 | due-customer | GET | getData('due-customer') | DueCustomerReportAction | Rendered by Vue | PDF, CSV |
+| 25 | customers-advance | GET | getData('customers-advance') | CustomersAdvanceReportAction | Rendered by Vue | PDF, CSV |
+| 26 | sales-returns | GET | getData('sales-returns') | SalesReturnsReportAction | Rendered by Vue | PDF, CSV |
+| 27 | sales-target | GET | getData('sales-target') | SalesTargetReportAction | Rendered by Vue | PDF, CSV |
+
+---
+
+### Route registration (e.g. in routes/web.php or reportRoutes.php)
+
+**Main Report Page Route:**
+```
+GET /app-report/{report-path?} -> ReportController@index($reportPath = null)
+```
+
+**Data Endpoint (for AJAX/Vue):**
+```
+GET /report/{report-path}/data -> ReportController@getData($reportPath)
+```
+Returns JSON: `{ success: true, data: [...], summary: {...} }`
+
+**Group 1: Sales & Revenue Reports**
+```
+GET  /report/sales/data               -> ReportController@getData('sales')
+GET  /report/sales/export/pdf         -> ReportController@exportPdf('sales')
+GET  /report/sales/export/csv         -> ReportController@exportCsv('sales')
+
+GET  /report/sales-product-wise/data   -> ReportController@getData('sales-product-wise')
+GET  /report/sales-product-wise/export/pdf -> ReportController@exportPdf('sales-product-wise')
+GET  /report/sales-product-wise/export/csv -> ReportController@exportCsv('sales-product-wise')
+
+GET  /report/single-product-sale/data -> ReportController@getData('single-product-sale')
+GET  /report/single-product-sale/export/pdf -> ReportController@exportPdf('single-product-sale')
+GET  /report/single-product-sale/export/csv -> ReportController@exportCsv('single-product-sale')
+
+GET  /report/ecommerce-order/data     -> ReportController@getData('ecommerce-order')
+GET  /report/ecommerce-order/export/pdf -> ReportController@exportPdf('ecommerce-order')
+GET  /report/ecommerce-order/export/csv -> ReportController@exportCsv('ecommerce-order')
+
+GET  /report/promotional-sales/data    -> ReportController@getData('promotional-sales')
+GET  /report/promotional-sales/export/pdf -> ReportController@exportPdf('promotional-sales')
+GET  /report/promotional-sales/export/csv -> ReportController@exportCsv('promotional-sales')
+
+GET  /report/salesman-sales/data       -> ReportController@getData('salesman-sales')
+GET  /report/salesman-sales/export/pdf -> ReportController@exportPdf('salesman-sales')
+GET  /report/salesman-sales/export/csv -> ReportController@exportCsv('salesman-sales')
+
+GET  /report/customer-sales/data      -> ReportController@getData('customer-sales')
+GET  /report/customer-sales/export/pdf -> ReportController@exportPdf('customer-sales')
+GET  /report/customer-sales/export/csv -> ReportController@exportCsv('customer-sales')
+
+GET  /report/location/data            -> ReportController@getData('location')
+GET  /report/location/export/pdf      -> ReportController@exportPdf('location')
+GET  /report/location/export/csv      -> ReportController@exportCsv('location')
+```
+
+**Group 2: Purchase & Procurement Reports**
+```
+GET  /report/purchase/data            -> ReportController@getData('purchase')
+GET  /report/purchase/export/pdf      -> ReportController@exportPdf('purchase')
+GET  /report/purchase/export/csv      -> ReportController@exportCsv('purchase')
+
+GET  /report/purchase-product-wise/data -> ReportController@getData('purchase-product-wise')
+GET  /report/purchase-product-wise/export/pdf -> ReportController@exportPdf('purchase-product-wise')
+GET  /report/purchase-product-wise/export/csv -> ReportController@exportCsv('purchase-product-wise')
+
+GET  /report/single-product-purchase/data -> ReportController@getData('single-product-purchase')
+GET  /report/single-product-purchase/export/pdf -> ReportController@exportPdf('single-product-purchase')
+GET  /report/single-product-purchase/export/csv -> ReportController@exportCsv('single-product-purchase')
+
+GET  /report/supplier-due/data        -> ReportController@getData('supplier-due')
+GET  /report/supplier-due/export/pdf  -> ReportController@exportPdf('supplier-due')
+GET  /report/supplier-due/export/csv -> ReportController@exportCsv('supplier-due')
+
+GET  /report/purchase-returns/data    -> ReportController@getData('purchase-returns')
+GET  /report/purchase-returns/export/pdf -> ReportController@exportPdf('purchase-returns')
+GET  /report/purchase-returns/export/csv -> ReportController@exportCsv('purchase-returns')
+```
+
+**Group 3: Inventory & Stock Reports**
+```
+GET  /report/in-stock/data            -> ReportController@getData('in-stock')
+GET  /report/in-stock/export/pdf      -> ReportController@exportPdf('in-stock')
+GET  /report/in-stock/export/csv      -> ReportController@exportCsv('in-stock')
+
+GET  /report/out-of-stock/data        -> ReportController@getData('out-of-stock')
+GET  /report/out-of-stock/export/pdf  -> ReportController@exportPdf('out-of-stock')
+GET  /report/out-of-stock/export/csv  -> ReportController@exportCsv('out-of-stock')
+
+GET  /report/low-stock/data           -> ReportController@getData('low-stock')
+GET  /report/low-stock/export/pdf     -> ReportController@exportPdf('low-stock')
+GET  /report/low-stock/export/csv     -> ReportController@exportCsv('low-stock')
+
+GET  /report/product-per-warehouse/data -> ReportController@getData('product-per-warehouse')
+GET  /report/product-per-warehouse/export/pdf -> ReportController@exportPdf('product-per-warehouse')
+GET  /report/product-per-warehouse/export/csv -> ReportController@exportCsv('product-per-warehouse')
+
+GET  /report/monthly-stock-movement/data -> ReportController@getData('monthly-stock-movement')
+GET  /report/monthly-stock-movement/export/pdf -> ReportController@exportPdf('monthly-stock-movement')
+GET  /report/monthly-stock-movement/export/csv -> ReportController@exportCsv('monthly-stock-movement')
+```
+
+**Group 4: Financial & Accounting Reports**
+```
+GET  /report/profit-loss/data         -> ReportController@getData('profit-loss')
+GET  /report/profit-loss/export/pdf  -> ReportController@exportPdf('profit-loss')
+GET  /report/profit-loss/export/csv  -> ReportController@exportCsv('profit-loss')
+
+GET  /report/account-head-wise/data   -> ReportController@getData('account-head-wise')
+GET  /report/account-head-wise/export/pdf -> ReportController@exportPdf('account-head-wise')
+GET  /report/account-head-wise/export/csv -> ReportController@exportCsv('account-head-wise')
+
+GET  /report/finance-dashboard/data   -> ReportController@getData('finance-dashboard')
+GET  /report/finance-dashboard/export/pdf -> ReportController@exportPdf('finance-dashboard')
+
+GET  /report/expense-summary/data     -> ReportController@getData('expense-summary')
+GET  /report/expense-summary/export/pdf -> ReportController@exportPdf('expense-summary')
+GET  /report/expense-summary/export/csv -> ReportController@exportCsv('expense-summary')
+
+GET  /report/payment-collection/data  -> ReportController@getData('payment-collection')
+GET  /report/payment-collection/export/pdf -> ReportController@exportPdf('payment-collection')
+GET  /report/payment-collection/export/csv -> ReportController@exportCsv('payment-collection')
+```
+
+**Group 5: Customer & Supplier Management Reports**
+```
+GET  /report/due-customer/data        -> ReportController@getData('due-customer')
+GET  /report/due-customer/export/pdf  -> ReportController@exportPdf('due-customer')
+GET  /report/due-customer/export/csv -> ReportController@exportCsv('due-customer')
+
+GET  /report/customers-advance/data   -> ReportController@getData('customers-advance')
+GET  /report/customers-advance/export/pdf -> ReportController@exportPdf('customers-advance')
+GET  /report/customers-advance/export/csv -> ReportController@exportCsv('customers-advance')
+
+GET  /report/sales-returns/data      -> ReportController@getData('sales-returns')
+GET  /report/sales-returns/export/pdf -> ReportController@exportPdf('sales-returns')
+GET  /report/sales-returns/export/csv -> ReportController@exportCsv('sales-returns')
+```
+
+**Group 6: Performance & Target Reports**
+```
+GET  /report/sales-target/data         -> ReportController@getData('sales-target')
+GET  /report/sales-target/export/pdf   -> ReportController@exportPdf('sales-target')
+GET  /report/sales-target/export/csv   -> ReportController@exportCsv('sales-target')
+```
+
+---
+
+### Controller pattern
+
+- **ReportController** methods:
+  1. **index($reportPath = null)**: Main report page — returns `backend/report/index.blade.php` view with Vue app. If `$reportPath` provided, Vue will auto-load that report on mount.
+  2. **getData($reportPath)**: AJAX endpoint — validate request filters (date_from, date_to, warehouse_id, etc.), call corresponding Action, return JSON `{ success: true, data: [...], summary: {...} }` for Vue to render.
+  3. **exportPdf($reportPath)**: get filters from request, call Action, render PDF view, return PDF download (A4, 10px margin).
+  4. **exportCsv($reportPath)**: get filters from request, call Action, format data as CSV, return CSV download with filename `{d-M-Y}-{report-title}.csv`.
+  
+  **Note:** Legacy `show()` and `generate()` methods can be kept for backward compatibility or removed if not needed.
+
+- **Report/Actions/** classes: one per report (e.g. `SalesReportAction`, `PurchaseReportAction`). 
+  - Method `run(array $filters): array` returns data array
+  - Method `getTitle(): string` returns report title for filename
+  - Method `getCsvHeaders(): array` returns CSV column headers
+  - Method `formatForCsv(array $data): array` formats data rows for CSV export
+  - Controller passes data to view, JSON, PDF, or CSV as needed
+
+---
+
+### Action plan (order of implementation)
+
+1. **Setup & infrastructure**
+   - Add route file or group for `/report/*` and `/app-report/*` routes
+   - Install PDF library (e.g. `composer require barryvdh/laravel-dompdf` or `snappy`)
+   - Create `App\Http\Controllers\Report\ReportController` (or move existing ReportController under Report namespace)
+   - Create base `ReportAction` abstract class with common methods (`getTitle()`, `getCsvHeaders()`, `formatForCsv()`, `getFiltersConfig()`)
+
+2. **UI & Main Page**
+   - Add "Reports" link in sidebar (`resources/views/backend/sidebar.blade.php`) pointing to `/app-report`
+   - Create main report page view: `resources/views/backend/report/index.blade.php`
+     - Left sidebar: list of report links organized by groups
+     - Right content area: Vue app container with filter form, results table, export buttons
+   - Implement Vue.js v2 app in `index.blade.php`:
+     - Initialize Vue app with data properties (activeReport, reportData, filters, loading, error)
+     - On mount: check URL for `report-path`, auto-load if present
+     - `loadReport(reportPath)` method: update URL, call AJAX `/report/{path}/data`, render results
+     - `applyFilters()` method: reload report with new filters
+     - `exportPdf()` and `exportCsv()` methods: open export URLs in new window
+   - Style left sidebar and right content area (CSS)
+
+3. **Controller methods**
+   - Implement `index($reportPath = null)`: return main report page view
+   - Implement `getData($reportPath)`: validate filters, call Action, return JSON `{ success, data, summary }` for Vue
+   - Implement `exportPdf($reportPath)`: generic method that loads Action, renders PDF view, returns PDF download
+   - Implement `exportCsv($reportPath)`: generic method that loads Action, formats CSV, returns CSV download
+
+4. **Action classes**
+   - Create Action classes in `App\Http\Controllers\Report\Actions\` (e.g. `SalesReportAction`, `PurchaseReportAction`, …)
+   - Each Action implements `run(array $filters): array` with report logic — returns `['data' => [...], 'summary' => [...]]`
+   - Each Action implements `getTitle(): string` for export filename
+   - Each Action implements `getCsvHeaders(): array` and `formatForCsv(array $data): array` for CSV export
+   - Each Action implements `getFiltersConfig(): array` — returns filter field definitions (type, label, options) for dynamic filter form rendering
+
+5. **Views**
+   - Main page: `index.blade.php` (already created in step 2)
+   - PDF-specific views in `resources/views/backend/report/pdf/` (e.g. `sales_report_pdf.blade.php`) with A4 layout and 10px margin styling
+   - Optional: Vue component templates for each report type (can be inline in `index.blade.php` or separate components)
+
+6. **Report implementation (by group)**
+   - **Group 1: Sales & Revenue** (reports 1–8)
+   - **Group 2: Purchase & Procurement** (reports 9–13)
+   - **Group 3: Inventory & Stock** (reports 14–18)
+   - **Group 4: Financial & Accounting** (reports 19–23)
+   - **Group 5: Customer & Supplier Management** (reports 24–26)
+   - **Group 6: Performance & Target** (report 27)
+
+6. **UI & navigation**
+   - Add sidebar/menu links organized by report groups under a “Reports” section
+   - Add export buttons (PDF, CSV) in each report view page
+   - Style export buttons consistently across all reports
+
+8. **Optional enhancements**
+   - Add coupon_code column to product_orders (nullable) and set it when a coupon is applied
+   - Add report caching for frequently accessed reports
+   - Add email report functionality (send PDF/CSV via email)
+   - Add date range presets (Today, This Week, This Month, etc.)
+   - Add table sorting and pagination in Vue
+   - Add print button (print current table view)

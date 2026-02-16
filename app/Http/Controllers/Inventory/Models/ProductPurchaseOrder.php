@@ -23,4 +23,12 @@ class ProductPurchaseOrder extends Model
         return $this->belongsTo(User::class, 'creator'); 
     }
 
+    public function supplier() {
+        return $this->belongsTo(ProductSupplier::class, 'product_supplier_id');
+    }
+
+    public function warehouse() {
+        return $this->belongsTo(ProductWarehouse::class, 'product_warehouse_id');
+    }
+
 }
