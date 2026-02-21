@@ -3,7 +3,9 @@
 namespace App\Http\Controllers\Inventory;
 
 use App\Http\Controllers\Controller;
+use App\Http\Controllers\Account\Models\DbPaymentType;
 use App\Http\Controllers\Customer\Models\Customer;
+use App\Http\Controllers\Outlet\Models\CustomerSourceType;
 use App\Http\Controllers\Inventory\Models\ProductSupplier;
 use App\Http\Controllers\Inventory\Models\ProductWarehouse;
 use App\Http\Controllers\Inventory\Models\ProductWarehouseRoom;
@@ -353,7 +355,194 @@ class ProductOrderController extends Controller
                 ->rawColumns(['action'])
                 ->make(true);
         }
-        return view('backend.product_order_management.view');
+        // Redirect to new order list page (Vue + pagination)
+        return redirect()->route('OrderListPage', ['order_source' => request('order_source', 'pos')]);
+    }
+
+    /**
+     * Order list page: Vue 2 + Laravel pagination.
+     * GET /order-list (default order_source=pos). AJAX returns JSON: analytics + paginated data.
+     */
+    public function orderListPage(Request $request)
+    {
+        $baseQuery = $this->orderListBaseQuery($request);
+
+        if ($request->ajax() || $request->wantsJson()) {
+            $analytics = $this->orderListAnalytics($baseQuery);
+            $perPage = (int) $request->get('per_page', 10);
+            $perPage = in_array($perPage, [10, 50, 100, 200]) ? $perPage : 10;
+            $orders = (clone $baseQuery)
+                ->with(['creator', 'customer', 'warehouse'])
+                ->orderBy('id', 'desc')
+                ->paginate($perPage)
+                ->appends($request->all());
+
+            $orders->getCollection()->transform(function ($order) {
+                return $this->transformOrderForList($order);
+            });
+
+            return response()->json([
+                'analytics' => $analytics,
+                'data' => $orders->items(),
+                'pagination' => [
+                    'current_page' => $orders->currentPage(),
+                    'last_page' => $orders->lastPage(),
+                    'per_page' => $orders->perPage(),
+                    'total' => $orders->total(),
+                    'from' => $orders->firstItem(),
+                    'to' => $orders->lastItem(),
+                ],
+            ]);
+        }
+
+        $paymentTypes = DbPaymentType::where('status', 'active')->get(['id', 'payment_type']);
+        $customerSources = CustomerSourceType::where('status', 'active')->get(['id', 'title']);
+        $warehouses = ProductWarehouse::orderBy('id')->get(['id', 'title', 'status']);
+
+        return view('backend.product_order_management.view', compact('paymentTypes', 'customerSources', 'warehouses'));
+    }
+
+    /**
+     * Base query for order list with all filters applied.
+     */
+    private function orderListBaseQuery(Request $request)
+    {
+        $query = ProductOrder::query();
+
+        // Search: customer name, customer phone exact, id, order_code, creator name partial, creator phone exact
+        if ($request->filled('search')) {
+            $search = $request->search;
+            $query->where(function ($q) use ($search) {
+                $q->where('id', $search)
+                    ->orWhere('order_code', 'like', '%' . $search . '%')
+                    ->orWhereHas('customer', function ($cq) use ($search) {
+                        $cq->where('name', 'like', '%' . $search . '%')
+                            ->orWhere('phone', $search);
+                    })
+                    ->orWhereHas('creator', function ($cq) use ($search) {
+                        $cq->where('name', 'like', '%' . $search . '%')
+                            ->orWhere('phone', $search);
+                    });
+            });
+        }
+
+        // Order status (buttons)
+        if ($request->filled('order_status')) {
+            $query->where('order_status', $request->order_status);
+        }
+
+        if ($request->filled('discount_type')) {
+            $query->where('discount_type', $request->discount_type);
+        }
+
+        // Customer source / order_source: delivery_info.order_source (default from plan: order_source=pos via URL)
+        $sourceParam = $request->filled('customer_source_type') ? $request->customer_source_type : $request->get('order_source');
+        if ($sourceParam !== null && $sourceParam !== '') {
+            $source = $sourceParam;
+            if (is_numeric($source)) {
+                $ct = CustomerSourceType::find($source);
+                $source = $ct ? (strtolower($ct->title ?? '') ?: (string) $source) : $source;
+            }
+            $query->whereRaw("JSON_UNQUOTE(JSON_EXTRACT(delivery_info, '$.order_source')) = ?", [$source]);
+        }
+
+        if ($request->filled('warehouse_id')) {
+            $query->where('product_warehouse_id', $request->warehouse_id);
+        }
+
+        if ($request->filled('warehouse_status')) {
+            $query->whereHas('warehouse', function ($w) use ($request) {
+                $w->where('status', $request->warehouse_status);
+            });
+        }
+
+        if ($request->filled('sales_date_from')) {
+            $query->where('sale_date', '>=', $request->sales_date_from);
+        }
+        if ($request->filled('sales_date_to')) {
+            $query->where('sale_date', '<=', $request->sales_date_to);
+        }
+        if ($request->filled('due_date_from')) {
+            $query->where('due_date', '>=', $request->due_date_from);
+        }
+        if ($request->filled('due_date_to')) {
+            $query->where('due_date', '<=', $request->due_date_to);
+        }
+
+        if ($request->filled('paid_status')) {
+            if ($request->paid_status === 'paid') {
+                $query->where('due_amount', '<=', 0);
+            } elseif ($request->paid_status === 'due') {
+                $query->where('due_amount', '>', 0);
+            }
+        }
+
+        return $query;
+    }
+
+    /**
+     * Analytics counts and totals from the same filtered base query.
+     */
+    private function orderListAnalytics($baseQuery)
+    {
+        $all = (clone $baseQuery)->selectRaw('COUNT(*) as cnt, COALESCE(SUM(CAST(total AS DECIMAL(15,2))), 0) as total_val')->first();
+        $pending = (clone $baseQuery)->where('order_status', 'pending')->selectRaw('COUNT(*) as cnt, COALESCE(SUM(CAST(total AS DECIMAL(15,2))), 0) as total_val')->first();
+        $invoiced = (clone $baseQuery)->where('order_status', 'invoiced')->selectRaw('COUNT(*) as cnt, COALESCE(SUM(CAST(total AS DECIMAL(15,2))), 0) as total_val')->first();
+        $delivered = (clone $baseQuery)->where('order_status', 'delivered')->selectRaw('COUNT(*) as cnt, COALESCE(SUM(CAST(total AS DECIMAL(15,2))), 0) as total_val')->first();
+        $canceled = (clone $baseQuery)->where('order_status', 'canceled')->selectRaw('COUNT(*) as cnt, COALESCE(SUM(CAST(total AS DECIMAL(15,2))), 0) as total_val')->first();
+        $returned = (clone $baseQuery)->where('is_returned', 1)->selectRaw('COUNT(*) as cnt, COALESCE(SUM(CAST(total AS DECIMAL(15,2))), 0) as total_val')->first();
+        $couriered = (clone $baseQuery)->where('is_couriered', 1)->selectRaw('COUNT(*) as cnt, COALESCE(SUM(CAST(total AS DECIMAL(15,2))), 0) as total_val')->first();
+        $paid = (clone $baseQuery)->whereRaw('COALESCE(due_amount, 0) <= 0')->selectRaw('COUNT(*) as cnt, COALESCE(SUM(CAST(total AS DECIMAL(15,2))), 0) as total_val')->first();
+        $due = (clone $baseQuery)->whereRaw('COALESCE(due_amount, 0) > 0')->selectRaw('COUNT(*) as cnt, COALESCE(SUM(CAST(total AS DECIMAL(15,2))), 0) as total_val')->first();
+
+        return [
+            'all' => ['count' => (int) $all->cnt, 'total_value' => (float) $all->total_val],
+            'pending' => ['count' => (int) $pending->cnt, 'total_value' => (float) $pending->total_val],
+            'invoiced' => ['count' => (int) $invoiced->cnt, 'total_value' => (float) $invoiced->total_val],
+            'delivered' => ['count' => (int) $delivered->cnt, 'total_value' => (float) $delivered->total_val],
+            'canceled' => ['count' => (int) $canceled->cnt, 'total_value' => (float) $canceled->total_val],
+            'returned' => ['count' => (int) $returned->cnt, 'total_value' => (float) $returned->total_val],
+            'couriered' => ['count' => (int) $couriered->cnt, 'total_value' => (float) $couriered->total_val],
+            'paid' => ['count' => (int) $paid->cnt, 'total_value' => (float) $paid->total_val],
+            'due' => ['count' => (int) $due->cnt, 'total_value' => (float) $due->total_val],
+        ];
+    }
+
+    /**
+     * Transform a single order for list JSON (table row).
+     */
+    private function transformOrderForList(ProductOrder $order)
+    {
+        $deliveryInfo = $order->delivery_info ?? [];
+        $otherCharges = $order->other_charges ?? [];
+        $shippingCharge = is_array($otherCharges) && isset($otherCharges['delivery_charge'])
+            ? (float) $otherCharges['delivery_charge']
+            : (float) ($order->other_charge_amount ?? 0);
+        $payments = $order->payments ?? [];
+        $orderSource = $deliveryInfo['order_source'] ?? $order->order_source ?? null;
+
+        return [
+            'id' => $order->id,
+            'order_code' => $order->order_code,
+            'slug' => $order->slug,
+            'sale_date' => $order->sale_date,
+            'due_date' => $order->due_date,
+            'customer_name' => $order->customer ? $order->customer?->name : ($order->request_data['custoemr_name'] ?? 'N/A'),
+            'customer_phone' => $order->customer ? $order->customer->phone : ($order->request_data['customer_phone'] ?? ''),
+            'customer_email' => $order->customer ? $order->customer->email : null,
+            'order_source' => $orderSource,
+            'creator_name' => $order->creator->name ?? '',
+            'creator_phone' => $order->creator->phone ?? '',
+            'warehouse_name' => $order->warehouse ? $order->warehouse->title : null,
+            'subtotal' => (float) $order->subtotal,
+            'shipping_charge' => $shippingCharge,
+            'grand_total' => (float) $order->total,
+            'paid_amount' => (float) ($order->paid_amount ?? 0),
+            'due_amount' => (float) ($order->due_amount ?? 0),
+            'order_status' => $order->order_status,
+            'is_couriered' => (int) ($order->is_couriered ?? 0),
+            'is_returned' => (int) ($order->is_returned ?? 0),
+        ];
     }
 
     /**

@@ -502,7 +502,14 @@ new Vue({
                     this.$delete(this.selectedOtherVariantGroups, slug);
                 }
             }
-            
+            // Ensure each selected group has a key (empty array) so single-group selection is tracked
+            if (newSlugs && newSlugs.length > 0) {
+                newSlugs.forEach(slug => {
+                    if (!this.selectedOtherVariantGroups.hasOwnProperty(slug)) {
+                        this.$set(this.selectedOtherVariantGroups, slug, []);
+                    }
+                });
+            }
             // Reinitialize Select2 for other variant value selects
             this.$nextTick(() => {
                 this.initializeOtherVariantValueSelects();
@@ -1758,15 +1765,15 @@ new Vue({
             return group ? group.active_keys : [];
         },
 
-        // Get stock-related groups (creates combinations)
+        // Get stock-related groups (creates combinations). Include color/size so single-variant (e.g. color-only) products can generate combinations.
         getStockRelatedGroups() {
             return this.variantGroups.filter(g => {
-                if (g.slug === 'color' || g.slug === 'size') return false;
+                if (g.slug === 'color' || g.slug === 'size') return true;
                 // Check for truthy values (true, 1, '1', or undefined/null as default)
-                return g.is_stock_related === true || 
-                       g.is_stock_related === 1 || 
-                       g.is_stock_related === '1' || 
-                       g.is_stock_related === undefined || 
+                return g.is_stock_related === true ||
+                       g.is_stock_related === 1 ||
+                       g.is_stock_related === '1' ||
+                       g.is_stock_related === undefined ||
                        g.is_stock_related === null;
             });
         },
@@ -1990,10 +1997,11 @@ new Vue({
             );
         },
 
-        // Generate Color & Size combinations (grouped by color)
+        // Generate Color & Size combinations. Supports: only colors, only sizes, or both (color-size pairs).
         generateColorSizeCombinations() {
-            if (!this.hasVariants || (!this.selectedColorSizeColors || this.selectedColorSizeColors.length === 0) || 
-                (!this.selectedColorSizeSizes || this.selectedColorSizeSizes.length === 0)) {
+            const hasColors = this.selectedColorSizeColors && this.selectedColorSizeColors.length > 0;
+            const hasSizes = this.selectedColorSizeSizes && this.selectedColorSizeSizes.length > 0;
+            if (!this.hasVariants || (!hasColors && !hasSizes)) {
                 this.colorSizeCombinations = [];
                 this.mergeAllCombinations();
                 return;
@@ -2002,72 +2010,83 @@ new Vue({
             const existingByKey = new Map((this.colorSizeCombinations || []).map(item => [item.combo.combination_key, item]));
             const finalMap = new Map();
 
-            // Get color and size names
-            const selectedColors = this.selectedColorSizeColors.map(id => {
+            const selectedColors = (this.selectedColorSizeColors || []).map(id => {
                 const color = this.colors.find(c => c.id == id);
                 return { id, name: color ? color.name : '' };
             }).filter(c => c.name);
 
-            const selectedSizes = this.selectedColorSizeSizes.map(id => {
+            const selectedSizes = (this.selectedColorSizeSizes || []).map(id => {
                 const size = this.sizes.find(s => s.id == id);
                 return { id, name: size ? size.name : '' };
             }).filter(s => s.name);
 
-            if (selectedColors.length === 0 || selectedSizes.length === 0) {
-                this.colorSizeCombinations = [];
-                this.mergeAllCombinations();
-                return;
-            }
-
-            // Create individual color-size pairs: blue-M, blue-L, blue-XL, red-M, red-L, red-XL
-            selectedColors.forEach(color => {
-                selectedSizes.forEach(size => {
-                    const combinationKey = `${color.name}-${size.name}`;
-                    const variantValues = {
-                        color: color.name,
-                        size: size.name
-                    };
-
-                    const existing = existingByKey.get(combinationKey);
-                    // Get color image data if exists
-                    const colorImageData = this.colorImages[color.id] || {};
-                    
-                    if (existing) {
-                        existing.combo.variant_values = variantValues;
-                        existing.combo.color_id = color.id; // Store color ID for image lookup
-                        // Copy color image data to combo
-                        if (colorImageData.image_id) {
-                            existing.combo.image_id = colorImageData.image_id;
-                            existing.combo.image_token = colorImageData.image_token || null;
-                            existing.combo.image_path = colorImageData.image_path || '';
-                            existing.combo.image_url = colorImageData.image_url || '';
-                        }
-                        finalMap.set(combinationKey, existing);
-                    } else {
-                        const combo = {
-                            combination_key: combinationKey,
-                            variant_values: variantValues,
-                            color_id: color.id, // Store color ID for image lookup
-                            price: this.pricing.price || null,
-                            discount_price: this.pricing.discount_price || null,
-                            additional_price: 0,
-                            stock: 0,
-                            present_stock: 0,
-                            low_stock_alert: 10,
-                            sku: '',
-                            barcode: '',
-                            warehouse_room_id: '',
-                            warehouse_room_cartoon_id: '',
-                            // Copy color image data if exists
-                            image_id: colorImageData.image_id || null,
-                            image_token: colorImageData.image_token || null,
-                            image_path: colorImageData.image_path || '',
-                            image_url: colorImageData.image_url || '',
-                        };
-                        finalMap.set(combinationKey, { combo, index: finalMap.size });
+            const upsertCombo = (combinationKey, variantValues, colorId, colorImageData) => {
+                const existing = existingByKey.get(combinationKey);
+                if (existing) {
+                    existing.combo.variant_values = variantValues;
+                    existing.combo.color_id = colorId != null ? colorId : (existing.combo.color_id || null);
+                    if (colorImageData && colorImageData.image_id) {
+                        existing.combo.image_id = colorImageData.image_id;
+                        existing.combo.image_token = colorImageData.image_token || null;
+                        existing.combo.image_path = colorImageData.image_path || '';
+                        existing.combo.image_url = colorImageData.image_url || '';
                     }
+                    finalMap.set(combinationKey, existing);
+                } else {
+                    const combo = {
+                        combination_key: combinationKey,
+                        variant_values: variantValues,
+                        color_id: colorId != null ? colorId : null,
+                        price: this.pricing.price || null,
+                        discount_price: this.pricing.discount_price || null,
+                        additional_price: 0,
+                        stock: 0,
+                        present_stock: 0,
+                        low_stock_alert: 10,
+                        sku: '',
+                        barcode: '',
+                        warehouse_room_id: '',
+                        warehouse_room_cartoon_id: '',
+                        image_id: (colorImageData && colorImageData.image_id) || null,
+                        image_token: (colorImageData && colorImageData.image_token) || null,
+                        image_path: (colorImageData && colorImageData.image_path) || '',
+                        image_url: (colorImageData && colorImageData.image_url) || '',
+                    };
+                    finalMap.set(combinationKey, { combo, index: finalMap.size });
+                }
+            };
+
+            if (selectedColors.length > 0 && selectedSizes.length > 0) {
+                // Both: color-size pairs (blue-M, blue-L, red-M, ...)
+                selectedColors.forEach(color => {
+                    const colorImageData = this.colorImages[color.id] || {};
+                    selectedSizes.forEach(size => {
+                        const combinationKey = `${color.name}-${size.name}`;
+                        upsertCombo(
+                            combinationKey,
+                            { color: color.name, size: size.name },
+                            color.id,
+                            colorImageData
+                        );
+                    });
                 });
-            });
+            } else if (selectedColors.length > 0) {
+                // Only colors: one combination per color
+                selectedColors.forEach(color => {
+                    const colorImageData = this.colorImages[color.id] || {};
+                    upsertCombo(
+                        color.name,
+                        { color: color.name },
+                        color.id,
+                        colorImageData
+                    );
+                });
+            } else {
+                // Only sizes: one combination per size
+                selectedSizes.forEach(size => {
+                    upsertCombo(size.name, { size: size.name }, null, null);
+                });
+            }
 
             this.colorSizeCombinations = Array.from(finalMap.values());
             this.mergeAllCombinations();
@@ -2086,10 +2105,9 @@ new Vue({
             const groupArrays = [];
             const orderedSlugs = [];
 
-            // Get all selected groups (excluding color and size)
+            // Get all selected groups (including color/size so single-variant products get combinations)
             for (let slug in this.selectedOtherVariantGroups) {
-                if (slug !== 'color' && slug !== 'size' && 
-                    this.selectedOtherVariantGroups[slug] && 
+                if (this.selectedOtherVariantGroups[slug] &&
                     this.selectedOtherVariantGroups[slug].length > 0) {
                     orderedSlugs.push(slug);
                 }
@@ -2108,10 +2126,16 @@ new Vue({
                     const mappedValues = keyIds.map(id => {
                         let keyName = '';
                         let groupLabel = slug;
-                        if (group && group.active_keys) {
-                            const key = group.active_keys.find(k => k.id == id);
-                            keyName = key ? key.key_name : '';
+                        if (group) {
                             groupLabel = group.name || slug;
+                            if (group.active_keys && group.active_keys.length > 0) {
+                                const key = group.active_keys.find(k => k.id == id);
+                                keyName = key ? key.key_name : '';
+                            }
+                            // Resolve color/size or any missing name via getKeyName (supports single-group combinations)
+                            if (!keyName) {
+                                keyName = this.getKeyName(slug, id) || '';
+                            }
                         }
                         return {
                             slug,
@@ -2179,6 +2203,9 @@ new Vue({
 
             this.otherVariantsCombinations = Array.from(finalMap.values());
             this.mergeAllCombinations();
+
+            console.log('otherVariantsCombinations', this.otherVariantsCombinations);
+            
         },
 
         // Merge all combinations from both tabs into variantCombinations

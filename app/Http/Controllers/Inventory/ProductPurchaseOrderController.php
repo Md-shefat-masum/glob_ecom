@@ -105,6 +105,7 @@ class ProductPurchaseOrderController extends Controller
                                     <i class="fas fa-barcode"></i>
                                     Generate Barcode
                                 </a>
+                                <a class="dropdown-item deleteBtn" href="javascript:void(0)" data-toggle="tooltip" data-id="' . $data->slug . '" data-original-title="Delete"><i class="fas fa-trash-alt"></i> Delete</a>
                             </div>
                         </div>';
                     }
@@ -500,7 +501,7 @@ class ProductPurchaseOrderController extends Controller
             }
             if ($stockHasColumns['variant_data']) {
                 $variantData = $variantCombination?->variant_values;
-                $product_stock->variant_data = $variantData ? json_encode($variantData) : null;
+                $product_stock->variant_data = $variantData ? ($variantData) : null;
             }
             if ($stockHasColumns['variant_price']) {
                 $product_stock->variant_price = $variantCombination->price ?? null;
@@ -580,7 +581,8 @@ class ProductPurchaseOrderController extends Controller
             $qty = (int)($product->qty ?? 1);
             for ($i = 1; $i <= $qty; $i++) {
                 // Generate unique code: product_id + (existing count + current iteration)
-                $unitCode = Carbon::now()->format('ymd') . $product->product_id. ($existingUnitsCount + $i);
+                // Carbon::now()->format('ymd') . 
+                $unitCode = $product->product_id. ($existingUnitsCount++);
                 $productPurchaseOrderProductUnit = new ProductPurchaseOrderProductUnit();
                 $productPurchaseOrderProductUnit->product_warehouse_id = $product->product_warehouse_id;
                 $productPurchaseOrderProductUnit->product_purchase_order_id = $data->id;
@@ -591,7 +593,7 @@ class ProductPurchaseOrderController extends Controller
                 $productPurchaseOrderProductUnit->price = $product->purchase_price ?? 0;
                 $productPurchaseOrderProductUnit->unit_status = 'instock';
                 $productPurchaseOrderProductUnit->creator = auth()->user()->id;
-                $productPurchaseOrderProductUnit->slug = uniqid() . $product->id . ($existingUnitsCount + $i);
+                $productPurchaseOrderProductUnit->slug = $product->id . ($existingUnitsCount++);
                 $productPurchaseOrderProductUnit->created_at = Carbon::now();
                 $productPurchaseOrderProductUnit->save();
             }
@@ -604,6 +606,22 @@ class ProductPurchaseOrderController extends Controller
     public function deletePurchaseProductOrder($slug)
     {
         $data = ProductPurchaseOrder::where('slug', $slug)->first();
+        $product_unis = ProductPurchaseOrderProductUnit::where('product_purchase_order_id', $data->id)->get();
+        foreach ($product_unis as $product_unit) {
+            $variantCombination = ProductVariantCombination::where('id', $product_unit->variant_combination_id)->first();
+            if ($variantCombination && $variantCombination->stock > 0) {
+                $variantCombination->stock = ($variantCombination->stock ?? 0) - 1;
+                $variantCombination->save();
+            }
+            $product_stock = ProductStock::where('variant_combination_id', $product_unit->variant_combination_id)->first();
+            if ($product_stock && $product_stock->qty > 0) {
+                $product_stock->qty = ($product_stock->qty ?? 0) - 1;
+                $product_stock->save();
+            }
+        }
+
+        ProductPurchaseOrderProductUnit::where('product_purchase_order_id', $data->id)->delete();
+        ProductPurchaseOrderProduct::where('product_purchase_order_id', $data->id)->delete();
 
         $data->delete();
         // $data->status = 'inactive';

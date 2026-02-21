@@ -325,7 +325,7 @@ class AnalyticsController extends Controller
                 ->join('product_order_products', 'products.id', '=', 'product_order_products.product_id')
                 ->join('product_orders', 'product_order_products.product_order_id', '=', 'product_orders.id')
                 ->where('categories.status', 'active')
-                ->where('product_orders.order_status', '!=', 'pending')
+                // ->where('product_orders.order_status', '!=', 'pending')
                 ->where('product_orders.created_at', '>=', $startDate)
                 ->groupBy('categories.id', 'categories.name')
                 ->orderBy('revenue', 'desc')

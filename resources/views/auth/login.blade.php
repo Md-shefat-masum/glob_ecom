@@ -174,8 +174,7 @@
                 <img src="{{ asset('assets/images/loginbg.png') }}" alt = "Getprotouch Mark" class="login_desktop">
                 <img src="{{ asset('assets/images/loginbg_mobile.png') }}" alt="Getprotouch Mark" class="login_mobile">
             </div>
-        @endif
-        @if (env('APP_NAME') == 'bme')
+        @else
             <div style="width: 100%; height: 100%;">
                 <img src="https://onemoneyway.com/wp-content/uploads/2024/10/pos-machine2.png"
                     style="width: 100%; height: 100%; object-fit: cover;" alt = "" class="login_desktop">

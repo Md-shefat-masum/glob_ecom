@@ -300,7 +300,7 @@ class DesktopPosController extends Controller
     public function productsByCategory(Request $request)
     {
         $page = max(1, (int) $request->get('page', 1));
-        $perPage = max(1, min(48, (int) $request->get('per_page', 24)));
+        $perPage = max(1, min(48, (int) $request->get('per_page', 5)));
         $warehouseId = $request->get('warehouse_id');
         $q = trim($request->get('q', ''));
 
@@ -329,7 +329,7 @@ class DesktopPosController extends Controller
 
         // When warehouse is set: join warehouse stock and order by stock_qty desc (in-stock first)
         if ($warehouseId !== null && $warehouseId > 0) {
-            $stockSub = \DB::table('product_stocks')
+            $stockSub = DB::table('product_stocks')
                 ->selectRaw('product_id, COALESCE(SUM(qty), 0) as stock_qty')
                 ->where('product_warehouse_id', $warehouseId)
                 ->groupBy('product_id');
@@ -390,6 +390,10 @@ class DesktopPosController extends Controller
                     }
                 }
 
+                $final_price = + ($product->discount_price && $product->discount_price > 0
+                    ? $product->discount_price
+                    : $product->price);
+
                 return [
                     'id' => $product->id,
                     'product_id' => $product->id,
@@ -398,9 +402,19 @@ class DesktopPosController extends Controller
                     'sku' => $product->sku ?? $product->code,
                     'barcode' => $product->barcode,
                     'has_variants' => (bool) $product->has_variant,
-                    'unit_price' => $product->discount_price && $product->discount_price > 0
-                        ? $product->discount_price
-                        : $product->price,
+
+                    // 'unit_price' => $final_price,
+                    'unit_price' => +$product->price,
+                    'main_price' => +$product->price,
+                    'final_price' => $final_price,
+                    'discount_price' => +$product->discount_price,
+                    'discount_parcent' => +$product->discount_parcent,
+                    'discount' => [
+                        'percent' => +$product->discount_parcent,
+                        'fixed' => +$product->price - +$product->discount_price,
+                        'value' => $final_price,
+                    ],
+
                     'stock' => $this->getProductStockForWarehouse($product, $warehouseId),
                     'variant_values' => $variant_values,
                     'variant_stocks' => $variant_stocks,
@@ -457,6 +471,8 @@ class DesktopPosController extends Controller
         $warehouseName = null;
         $roomName = null;
         $cartoonName = null;
+        $final_price = 0;
+
         if ($unit->product_purchase_order_product_id) {
             $orderProduct = ProductPurchaseOrderProduct::find($unit->product_purchase_order_product_id);
             if ($orderProduct) {
@@ -476,6 +492,9 @@ class DesktopPosController extends Controller
         }
 
         $purchasePrice = (float) ($unit->price ?? 0);
+        $final_price = (float) ($product->discount_price && $product->discount_price > 0
+            ? $product->discount_price
+            : $product->price);
 
         $productData = [
             'id' => $product->id,
@@ -486,9 +505,7 @@ class DesktopPosController extends Controller
                 'id' => $unit->id,
                 'code' => $unit->code,
                 'purchase_price' => $purchasePrice,
-                'price' => (float) ($product->discount_price && $product->discount_price > 0
-                    ? $product->discount_price
-                    : $product->price),
+                'price' => $product->price,
                 'unit_status' => $unit->unit_status,
                 'product_purchase_order_product_id' => $unit->product_purchase_order_product_id,
                 'variant_combination_id' => $unit->variant_combination_id,
@@ -496,6 +513,7 @@ class DesktopPosController extends Controller
                 'room_name' => $roomName,
                 'cartoon_name' => $cartoonName,
             ],
+
             'unit_code' => $unit->code,
         ];
 
@@ -506,10 +524,11 @@ class DesktopPosController extends Controller
             $productData['image_url'] = $this->productImageUrl($variant->image ?: $product->image);
 
             $productData['purchase_price'] = $purchasePrice;
+            $productData['unit_price'] = $product->price;
 
-            $productData['unit_price'] = (float) ($product->discount_price && $product->discount_price > 0
-                ? $product->discount_price
-                : ($variant->getEffectiveDiscountPrice() ?? $variant->getFinalPrice()));
+            // $productData['unit_price'] = (float) ($product->discount_price && $product->discount_price > 0
+            //     ? $product->discount_price
+            //     : ($variant->getEffectiveDiscountPrice() ?? $variant->getFinalPrice()));
 
             // $productData['unit_price'] = $unit->price !== null && $unit->price > 0
             //     ? (float) $unit->price
@@ -522,13 +541,31 @@ class DesktopPosController extends Controller
 
             $productData['purchase_price'] = $purchasePrice;
 
-            $productData['unit_price'] = (float) ($product->discount_price && $product->discount_price > 0
-                ? $product->discount_price
-                : $product->price);
+            // $productData['unit_price'] = (float) ($product->discount_price && $product->discount_price > 0
+            //     ? $product->discount_price
+            //     : $product->price);
+
+            $productData['unit_price'] = $product->price;
 
             $productData['stock'] = $this->getProductStockForWarehouse($product, $warehouseId);
             $productData['max_qty'] = $productData['stock'];
         }
+
+        $productData = [
+            ...$productData,
+
+            // 'unit_price' => $final_price,
+            'unit_price' => +$product->price,
+            'main_price' => +$product->price,
+            'final_price' => $final_price,
+            'discount_price' => +$product->discount_price,
+            'discount_parcent' => +$product->discount_parcent,
+            'discount' => [
+                'percent' => +$product->discount_parcent,
+                'fixed' => +$product->price - +$product->discount_price,
+                'value' => $final_price,
+            ],
+        ];
 
         return response()->json([
             'success' => true,
@@ -778,6 +815,7 @@ class DesktopPosController extends Controller
     public function searchCustomer(Request $request)
     {
         $q = trim($request->get('q', ''));
+        $phone = trim($request->get('phone', ''));
         $first = $request->get('first', false);
         $customerId = $request->get('customer_id', null);
 
@@ -801,7 +839,12 @@ class DesktopPosController extends Controller
         $customer_query->where('status', 'active')
             ->orderBy('id', 'desc');
 
-        $customers = $first ? $customer_query->first() : $customer_query->paginate(10);
+        if ($phone !== '') {
+            $first = true;
+            $customers = $customer_query->where('phone', $phone)->first();
+        } else {
+            $customers = $first ? $customer_query->first() : $customer_query->paginate(10);
+        }
 
         if (!$first) {
             foreach ($customers as $customer) {
@@ -905,7 +948,9 @@ class DesktopPosController extends Controller
         ]);
 
         if (!empty($data['id'])) {
-            $customer = Customer::findOrFail($data['id']);
+            $customer = Customer::find($data['id']) ?? new Customer();
+        } elseif (!empty($data['mobile'])) {
+            $customer = Customer::where('phone', $data['mobile'])->first() ?? new Customer();
         } else {
             $customer = new Customer();
         }
@@ -1236,6 +1281,8 @@ class DesktopPosController extends Controller
         $orderStatus = $request->get('order_status', 'quotation');
 
         $customerAddress = request()->get('customer')['address'] ?? null;
+        $customerPhone = request()->get('customer')['phone'] ?? null;
+        $customerName = request()->get('customer')['name'] ?? null;
 
         $grandTotal = (float) data_get($totals, 'grand_total', 0);
         $paymentTotal = 0;
@@ -1251,9 +1298,9 @@ class DesktopPosController extends Controller
 
         $is_confirmed = in_array($orderStatus, ['invoiced', 'delivered']);
 
-        if ($customerId) {
+        if ($customerId && $customerId > 1) {
             $customer = Customer::findOrFail($customerId);
-            if($customerAddress) {
+            if ($customerAddress) {
                 $customer->address = $customerAddress;
                 $customer->save();
             }
@@ -1297,6 +1344,8 @@ class DesktopPosController extends Controller
             $order->order_code = $this->generateOrderCode();
             $order->product_warehouse_id = $warehouseId;
             $order->customer_id = $customerId;
+            $order->customer_phone = $customerPhone;
+            $order->customer_name = $customerName;
             $order->sale_date = Carbon::now();
             $order->subtotal = data_get($totals, 'subtotal', 0);
             $order->other_charges = [
@@ -1358,13 +1407,16 @@ class DesktopPosController extends Controller
                 $unit_info = null;
                 if ($unitCode) {
                     if ($is_confirmed) {
-                        $unit_info = ProductPurchaseOrderProductUnit::where('code', $unitCode)->update([
-                            'sale_id' => $order->id,
-                            'unit_status' => 'sold',
-                            'updated_at' => Carbon::now(),
+                        $unit_info = ProductPurchaseOrderProductUnit::where('code', $unitCode)->first();
+                        if ($unit_info) {
+                            $unit_info->update([
+                                'sale_id' => $order->id,
+                                'unit_status' => 'sold',
+                                'updated_at' => Carbon::now(),
 
-                            'product_order_product_id' => $productOrderProduct->id,
-                        ]);
+                                'product_order_product_id' => $productOrderProduct->id,
+                            ]);
+                        }
                     }
                 } else {
                     if ($is_confirmed) {
@@ -1393,7 +1445,7 @@ class DesktopPosController extends Controller
                             'product_supplier_id' => $purchase_order_product->product_supplier_id ?? null,
                         ]);
                     }
-                    
+
                     // decrement stock
                     if ($variantId) {
                         $variant = ProductVariantCombination::find($variantId);
@@ -1408,6 +1460,7 @@ class DesktopPosController extends Controller
                             ->where('product_warehouse_id', $warehouseId)
                             ->where('status', 'active')
                             ->where('variant_combination_id', $variantId)
+                            ->where('qty', '>=', $item['qty'])
                             ->decrement('qty', $item['qty']);
 
                         ProductStockLog::create([
@@ -1429,6 +1482,7 @@ class DesktopPosController extends Controller
                         ProductStock::where('product_id', $product->id)
                             ->where('product_warehouse_id', $warehouseId)
                             ->where('status', 'active')
+                            ->where('qty', '>=', $item['qty'])
                             ->decrement('qty', $item['qty']);
 
                         ProductStockLog::create([
@@ -1466,13 +1520,13 @@ class DesktopPosController extends Controller
             }
 
             if ($deliveryInfo['courier_method']) {
-                if(strtolower($deliveryInfo['courier_method_title']) == 'pathao') {
+                if (strtolower($deliveryInfo['courier_method_title']) == 'pathao') {
                     $pathao = new PathaoController();
-                    $pathao->createOrder($order,$deliveryInfo['courier_method']);
+                    $pathao->createOrder($order, $deliveryInfo['courier_method']);
                 }
-                if(strtolower($deliveryInfo['courier_method_title']) == 'steadfast') {
+                if (strtolower($deliveryInfo['courier_method_title']) == 'steadfast') {
                     $steadfast = new SteadfastController();
-                    $steadfast->createOrder($order,$deliveryInfo['courier_method']);
+                    $steadfast->createOrder($order, $deliveryInfo['courier_method']);
                 }
             }
 
@@ -1490,6 +1544,7 @@ class DesktopPosController extends Controller
         } catch (\Throwable $e) {
             DB::rollBack();
 
+            // throw $e;
             return response()->json([
                 'success' => false,
                 'message' => 'Order creation failed: ' . $e->getMessage(),

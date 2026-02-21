@@ -168,10 +168,10 @@ class HomePageAnalytics extends Controller
             ->count();
 
         return [
-            'opening_stock' => round($openingStock, 3),
-            'stock_in' => round($stockIn, 3),
-            'stock_out' => round($stockOut, 3),
-            'closing_stock' => round($closingStock, 3),
+            'opening_stock' => round($openingStock, 0),
+            'stock_in' => round($stockIn, 0),
+            'stock_out' => round($stockOut, 0),
+            'closing_stock' => round($closingStock, 0),
             'low_stock_products' => $lowStockCount,
         ];
     }
@@ -295,14 +295,14 @@ class HomePageAnalytics extends Controller
             'pos_orders' => (int) ($posOrders->orders ?? 0),
             'ecommerce_orders' => (int) ($ecomOrders->orders ?? 0),
             'items_sold' => (int) $totalQty,
-            'gross_revenue' => round($grossRevenue, 2),
-            'avg_order_value' => round($averageOrderValue, 2),
-            'pos_revenue' => round((float) ($posItems->amount ?? 0), 2),
-            'ecommerce_revenue' => round((float) ($ecomItems->amount ?? 0), 2),
-            'avg_items_per_order' => round($averageItemsPerOrder, 2),
+            'gross_revenue' => round($grossRevenue, 0),
+            'avg_order_value' => round($averageOrderValue, 0),
+            'pos_revenue' => round((float) ($posItems->amount ?? 0), 0),
+            'ecommerce_revenue' => round((float) ($ecomItems->amount ?? 0), 0),
+            'avg_items_per_order' => round($averageItemsPerOrder, 0),
             'distinct_customers' => $distinctCustomers,
             'repeat_customer_count' => $repeatCustomers,
-            'repeat_customer_rate' => round($repeatRate, 2),
+            'repeat_customer_rate' => round($repeatRate, 0),
             'status_breakdown' => [
                 'pos' => $posStatus,
                 'ecommerce' => $ecomStatus,

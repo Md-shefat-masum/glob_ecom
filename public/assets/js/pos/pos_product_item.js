@@ -11,6 +11,10 @@ Vue.component('pos-product-item', {
         productItemSelect: {
             type: Function,
             default: () => {},
+        },
+        hide_product_search_result: {
+            type: Function,
+            default: () => {},
         }
     },
     data: function () {
@@ -65,9 +69,12 @@ Vue.component('pos-product-item', {
         },
         canAddVariant() {
             return this.allVariantSelected && this.key_combination && this.variantStock > 0;
-        }
+        },
     },
     methods: {
+        formatMoney(v) {
+            return (Number(v) || 0).toFixed(2);
+        },
         normalizeToken(value) {
             return (value || '').trim().toLowerCase().replace(/\s+/g, '-');
         },
@@ -95,44 +102,60 @@ Vue.component('pos-product-item', {
         },
         addWithVariant() {
             this.productItemSelect(this.p, { variant_combination_key: this.key_combination, max_qty: this.variantStock });
+            this.hide_product_search_result();
         }
     },
     template: `
-        <div class="pos-product-card">
+        <div class="pos-product-card pos-product-card-v2">
             <img :src="p.image_url" alt="" :title="p.name + ' (' + p.id + ')'" class="pos-product-thumb">
-            <div class="pos-product-name" :title="p.name">{{ p.name }}</div>
-            <div class="pos-product-meta">
-                <div>
-                    <div class="pos-product-price">{{ formatMoney(p.unit_price) }}</div>
-                    <span class="text-muted" style="font-size: 11px;">Stock: {{ p.stock }}</span>
-                </div>
+            <div class="pos_search_product_info">
+                <div class="pos-product-name" :title="p.name">{{ p.name }}</div>
+                <div class="pos-product-meta">
+                    <div>
+                        <div class="pos-product-price">
+                            <span v-if="p.discount_price > 0">
+                                <span style="font-size: 11px;">
+                                    {{ formatMoney(p.discount_price) }}
+                                </span>
+                                <del class="text-muted" style="font-size: 11px;">
+                                    {{ formatMoney(p.main_price) }}
+                                </del>
+                            </span>
+                            <span v-else>
+                                {{ formatMoney(p.unit_price) }}
+                            </span>
+                        </div>
+                        <span class="text-muted" style="font-size: 11px;">Stock: {{ p.stock }}</span>
+                    </div>
 
-                <button type="button" v-if="p.has_variants && p.stock > 0" class="pos-product-add" @click.stop="show_variant_block = !show_variant_block">
-                    {{ show_variant_block ? 'hide' : 'select' }}
-                </button>
-                <button type="button" v-else-if="p.stock > 0" class="pos-product-add" @click.stop="productItemSelect(p)">
-                    Add
-                </button>
-            </div>
-            <div v-if="show_variant_block" @click.stop>
-                <div v-for="(variant, index) in p.variant_values" :key="index">
-                    <div v-for="(variant_item, key) in variant" :key="key" class="mb-1">
-                        <div>{{ key }}</div>
-                        <select class="form-control"
-                            :value="getSelected(index)"
-                            @input="setSelected(index, $event.target.value)">
-                            <option value="">Select {{ key }}</option>
-                            <option v-for="option in filteredVariantOptions(index, variant_item)" :key="option" :value="option">{{ option }}</option>
-                        </select>
-                    </div>
-                </div>
-                <div>
-                    <div v-if="key_combination">
-                        stock: {{ variantStock }}
-                    </div>
-                    <button type="button" class="pos-product-add" v-if="canAddVariant" @click="addWithVariant">
+                    <button type="button" v-if="p.has_variants && p.stock > 0" class="pos-product-add" @click.stop="show_variant_block = !show_variant_block">
+                        {{ show_variant_block ? 'hide' : 'select' }}
+                    </button>
+                    <button type="button" v-else-if="p.stock > 0" class="pos-product-add" @click.stop="()=>{productItemSelect(p); hide_product_search_result();}">
                         Add
                     </button>
                 </div>
-            </div> `
+                <div v-if="show_variant_block" @click.stop>
+                    <div v-for="(variant, index) in p.variant_values" :key="index">
+                        <div v-for="(variant_item, key) in variant" :key="key" class="mb-1 pos_search_variant_item">
+                            <div class="pos_search_variant_item_key">{{ key }}</div>
+                            <select class="form-control pos_search_variant_item_select"
+                                :value="getSelected(index)"
+                                @input="setSelected(index, $event.target.value)">
+                                <option value="">Select {{ key }}</option>
+                                <option v-for="option in filteredVariantOptions(index, variant_item)" :key="option" :value="option">{{ option }}</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="pos_search_variant_item_stock">
+                        <div v-if="key_combination">
+                            available stock: {{ variantStock }}
+                        </div>
+                        <button type="button" class="pos-product-add" v-if="canAddVariant" @click="addWithVariant">
+                            Add
+                        </button>
+                    </div>
+                </div> 
+            </div>
+        `
 });

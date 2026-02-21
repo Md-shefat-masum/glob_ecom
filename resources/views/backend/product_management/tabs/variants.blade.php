@@ -136,8 +136,10 @@
                                         <small class="text-muted">
                                             <i class="fas fa-lightbulb"></i>
                                             <strong>Note:</strong><br>
-                                            • Combinations are grouped by color<br>
-                                            • Each color will have all selected sizes
+                                            • Select only colors, only sizes, or both<br>
+                                            • Only colors: one combination per color<br>
+                                            • Only sizes: one combination per size<br>
+                                            • Both: each color × each size (e.g. Blue-M, Blue-L)
                                         </small>
                                     </div>
                                 </div>
@@ -267,14 +269,14 @@
                                                     <th width="110">Discount (৳)</th>
                                                     <th width="100">Add. Price</th>
                                                     <th width="90">Low Alert</th>
-                                                    <th width="130">SKU</th>
-                                                    <th width="130">Barcode</th>
+                                                    {{-- <th width="130">SKU</th> --}}
+                                                    {{-- <th width="130">Barcode</th> --}}
                                                 </tr>
                                             </thead>
                                             <tbody>
                                                 <tr v-if="colorSizeCombinations.length === 0">
                                                     <td colspan="8" class="text-center text-muted py-4">
-                                                        Select colors and sizes to generate combinations.
+                                                        Select colors and/or sizes to generate combinations.
                                                     </td>
                                                 </tr>
                                                 <tr v-for="(variant, idx) in colorSizeCombinations"
@@ -324,7 +326,7 @@
                                                             class="form-control form-control-sm" step="0.01"
                                                             placeholder="0">
                                                     </td>
-                                                    <td class="text-center align-middle">
+                                                    {{-- <td class="text-center align-middle">
                                                         <div class="d-flex align-items-center justify-content-center">
                                                             <span class="badge"
                                                                 :class="{
@@ -340,26 +342,26 @@
                                                                 @{{ variant.combo.present_stock || 0 }}
                                                             </span>
                                                         </div>
-                                                    </td>
-                                                    <td>
+                                                    </td> --}}
+                                                    {{-- <td>
                                                         <input type="number" v-model="variant.combo.stock"
                                                             class="form-control form-control-sm" min="0"
                                                             step="1" placeholder="0"
                                                             title="Enter quantity to add to existing stock">
-                                                    </td>
+                                                    </td> --}}
                                                     <td>
                                                         <input type="number" v-model="variant.combo.low_stock_alert"
                                                             class="form-control form-control-sm" min="0"
                                                             placeholder="10">
                                                     </td>
-                                                    <td>
+                                                    {{-- <td>
                                                         <input type="text" v-model="variant.combo.sku"
                                                             class="form-control form-control-sm" placeholder="SKU">
-                                                    </td>
-                                                    <td>
+                                                    </td> --}}
+                                                    {{-- <td>
                                                         <input type="text" v-model="variant.combo.barcode"
                                                             class="form-control form-control-sm" placeholder="Barcode">
-                                                    </td>
+                                                    </td> --}}
                                                 </tr>
                                             </tbody>
                                         </table>
@@ -512,8 +514,8 @@
                                                     <th width="110">Discount (৳)</th>
                                                     <th width="100">Add. Price</th>
                                                     <th width="90">Low Alert</th>
-                                                    <th width="130">SKU</th>
-                                                    <th width="130">Barcode</th>
+                                                    {{-- <th width="130">SKU</th> --}}
+                                                    {{-- <th width="130">Barcode</th> --}}
                                                 </tr>
                                             </thead>
                                             <tbody>
@@ -586,20 +588,21 @@
                                                             class="form-control form-control-sm" min="0"
                                                             placeholder="10">
                                                     </td>
-                                                    <td>
+                                                    {{-- <td>
                                                         <input type="text" v-model="variant.combo.sku"
                                                             class="form-control form-control-sm" placeholder="SKU">
-                                                    </td>
-                                                    <td>
+                                                    </td> --}}
+                                                    {{-- <td>
                                                         <input type="text" v-model="variant.combo.barcode"
                                                             class="form-control form-control-sm" placeholder="Barcode">
-                                                    </td>
+                                                    </td> --}}
                                                 </tr>
                                             </tbody>
                                         </table>
                                     </div>
                                 </div>
                             </div>
+
                         </div>
                     </div>
                 </div>

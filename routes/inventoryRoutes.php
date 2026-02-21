@@ -218,4 +218,6 @@ Route::group(['middleware' => ['auth', 'CheckUserType', 'DemoMode']], function (
     Route::post('/product-return-manual-update/{slug}', [ManualProductReturnController::class, 'update'])->name('UpdateManualProductReturn');
     Route::get('/product-return-manual-delete/{slug}', [ManualProductReturnController::class, 'destroy'])->name('DeleteManualProductReturn');
 
+    // Order List Management (Vue + pagination, default order_source=pos)
+    Route::get('/product-order/list', [ProductOrderController::class, 'orderListPage'])->name('OrderListPage');
 });

@@ -286,6 +286,16 @@ Vue.component('pos-customer-manage', {
         customer_sources: {
             type: Array,
             required: true
+        },
+        selectedCustomer: {
+            type: Object,
+            required: true,
+            default: {
+                id: 1,
+                name: 'walking customer',
+                phone: '',
+                image: null,
+            }
         }
     },
     data: function () {
@@ -310,12 +320,20 @@ Vue.component('pos-customer-manage', {
             password: '',
             districts: [],
             show_customer_modal: false,
+            is_new_customer: false,
+            is_invalid_phone: false,
         }
     },
     watch: {
         customer: {
             handler: function (newVal) {
                 this.setSelectedCustomer(newVal);
+            },
+            deep: true
+        },
+        selectedCustomer: {
+            handler: function (newVal) {
+                this.customer = newVal;
             },
             deep: true
         }
@@ -325,6 +343,9 @@ Vue.component('pos-customer-manage', {
         this.get_districts();
     },
     methods: {
+        changeNewCustomerMode(mode=false) {
+            this.is_new_customer = mode;
+        },
         get_customers: function () {
             axios.get('/pos/desktop/customers', {
                 params: {
@@ -547,6 +568,23 @@ Vue.component('pos-customer-manage', {
                     console.error(error);
                 });
         },
+        save_new_customer: function () {
+            const payload = {
+                name: this.customer.name,
+                mobile: this.customer.phone,
+            };
+            axios.post('/pos/desktop/customers/create', payload)
+                .then(response => {
+                    if (response.data.success) {
+                        this.customers.data.unshift(response.data.data);
+                        this.customer = response.data.data;
+                        this.changeNewCustomerMode(false);
+                    }
+                })
+                .catch(error => {
+                    console.log(error);
+                });
+        },
         add_billing_address: function () {
             this.billing_address.push({ full_name: '', phone: '', address: '', district: null });
         },
@@ -640,7 +678,7 @@ Vue.component('pos-customer-manage', {
                     this.shipping_address = [{ full_name: '', phone: '', address: '', district: null }];
                 }
             } else {
-                this.customer = null;
+                // this.customer = {};
                 this.viewCustomer = null;
                 this.billing_address = [{ full_name: '', phone: '', address: '', district: null }];
                 this.shipping_address = [{ full_name: '', phone: '', address: '', district: null }];
@@ -665,6 +703,7 @@ Vue.component('pos-customer-manage', {
                 });
         },
         reset_to_walking_customer: function () {
+            this.changeNewCustomerMode(false);
             this.customer = {
                 id: 1,
                 name: 'walking customer',
@@ -675,6 +714,68 @@ Vue.component('pos-customer-manage', {
         format_number: function (number) {
             return Intl.NumberFormat('en-US').format(number);
         },
+        validate_phone(phone) {
+            if (!phone) return false;
+            phone = phone.toString().replace(/\D/g, '');
+            if (phone.length === 11 && phone.startsWith('01')) {
+                return true;
+            }
+            if (phone.length === 13 && phone.startsWith('8801')) {
+                return true;
+            }
+            return false;
+        },
+        search_customer: function(){
+            this.is_invalid_phone = false;
+            if(!this.validate_phone(this.customer.phone)){
+                this.is_invalid_phone = true;
+                return;
+            }
+            axios.get('/pos/desktop/customers', {
+                params: {
+                    phone: this.customer.phone
+                }
+            })
+                .then(response => {
+                    let customer = response.data.data;
+                    if(!customer){
+                        this.customer = {
+                            phone: this.customer.phone,
+                            image: null,
+                            name: '',
+                            id: null,
+                        }
+                        this.changeNewCustomerMode(true);
+                    }else{
+                        this.customer = customer;
+                        this.setSelectedCustomer(customer);
+                    }
+                })
+                .catch(error => {
+                    console.log(error);
+                    // this.s_alert('Failed to search customer', 'error');
+                });
+        },
+        s_alert(title, icon = 'info', text = null) {
+            const opts = { title, icon, allowOutsideClick: false, allowEscapeKey: false };
+            if (text) opts.text = text;
+            if (typeof Swal !== 'undefined') {
+                Swal.fire(opts);
+            } else {
+                alert(title);
+            }
+        },
+        phone_number_validate_on_type: function(){
+            if (!this.customer || this.customer.phone == null) return;
+            var raw = String(this.customer.phone);
+            var digits = raw.replace(/\D/g, '');
+            var maxLen = 11;
+            if (digits.length > maxLen) {
+                this.customer.phone = digits.slice(0, maxLen);
+            } else if (digits !== raw) {
+                this.customer.phone = digits;
+            }
+        },
     },
     template: `
         <div>
@@ -683,35 +784,59 @@ Vue.component('pos-customer-manage', {
                     <img v-if="customer && customer.image" :src="window.POS_DESKTOP_CONFIG.image_url+'/'+customer.image" alt="Customer" class="customer_avatar">
                 </div>
                 <div class="customer_info_wrapper">
-                    <div class="customer_name">
+                    <div class="customer_name" v-if="!is_new_customer">
                         {{ customer?.id ?? '' }} -
                         {{ customer?.name ?? '' }} 
                     </div>
-                    <div class="customer_mobile" v-if="customer && customer.due_amount > 0">
-                        <b>Due:</b> {{ format_number(customer?.due_amount ?? 0) }} <b>Bal:</b> {{ format_number(customer?.available_advance ?? 0) }}
+                    <div v-else class="customer_name">
+                        <input v-model="customer.name" @keydown.enter="save_new_customer()" placeholder="Enter name" />
                     </div>
                     <!-- 
+                        <div class="customer_mobile" v-if="customer && customer.due_amount > 0">
+                            <b>Due:</b> {{ format_number(customer?.due_amount ?? 0) }} <b>Bal:</b> {{ format_number(customer?.available_advance ?? 0) }}
+                        </div>
                         <div class="customer_mobile" v-if="customer && customer.id != 1">
                             {{ customer?.phone ?? '' }}
                         </div>
                     -->
-                    <div v-if="customer && customer.id">
-                        <input v-model="customer.phone" placeholder="Enter phone" />
+                    <div>
+                        <input v-model="customer.phone" @keyup="phone_number_validate_on_type" @keydown.enter="search_customer" placeholder="Enter phone" maxlength="11" />
+                        <div v-if="is_invalid_phone">
+                            <small class="text-danger">Invalid phone number</small>
+                        </div>
                     </div>
                 </div>
                 <div class="action_button">
+                    <button type="button" v-if="is_new_customer" class="btn btn-sm btn-light" @click="save_new_customer()">
+                        <i class="fas fa-save"></i> Save
+                    </button>
+
                     <button type="button" class="btn btn-sm btn-light" @click="reset_to_walking_customer()">
                         <i class="fas fa-redo"></i>
                     </button>
                     <button type="button" class="btn btn-sm btn-light" @click="change_type('list');show_customer_modal=true;">
                         <i class="fas fa-search"></i>
                     </button>
-                    <button type="button" class="btn btn-sm btn-light" @click="change_type('add');show_customer_modal=true;">
-                        <i class="fas fa-user-plus"></i>
-                    </button>
+                    <!-- 
+                        <button type="button" class="btn btn-sm btn-light" @click="change_type('add');show_customer_modal=true;">
+                            <i class="fas fa-user-plus"></i>
+                        </button>
+                    -->
                     <button type="button" v-if="customer && customer.id != 1" class="btn btn-sm btn-light" @click="change_type('edit', customer);show_customer_modal=true;">
                         <i class="fas fa-user-edit"></i>
                     </button>
+                    
+                </div>
+                <div v-if="customer && customer.id > 1" class="customer_analytics">
+                    <div v-if="customer?.due_amount > 0">
+                        <b>Due:</b> {{ format_number(customer?.due_amount ?? 0) }}
+                    </div>
+                    <div v-if="customer?.available_advance > 0">
+                        <b>Bal:</b> {{ format_number(customer?.available_advance ?? 0) }}
+                    </div>
+                    <div v-if="customer?.order_count > 0">
+                        <b>Total Orders:</b> {{ customer?.order_count ?? 0 }}
+                    </div>
                 </div>
             </div>
             <div class="customer_manage_modal" v-if="show_customer_modal">

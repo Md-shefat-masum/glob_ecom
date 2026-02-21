@@ -62,10 +62,10 @@
 @endsection
 
 @section('page_title')
-    Purchase Product Order
+    Order Management
 @endsection
 @section('page_heading')
-    View All Purchase Product Orders
+    All Orders
 @endsection
 
 @section('content')
@@ -73,11 +73,11 @@
         <div class="col-lg-12 col-xl-12">
             <div class="card">
                 <div class="card-body">
-                    <h4 class="card-title mb-3">View All Purrchase Orders</h4>
+                    <h4 class="card-title mb-3">All Orders</h4>
                     <div class="table-responsive">
                         <label id="customFilter">
-                            <a href="{{ url('/add/new/purchase-product/order') }}" class="btn btn-primary btn-sm"
-                                style="margin-left: 5px"><b><i class="fas fa-plus"></i> new purchase</b></a>
+                            <a href="{{ url('/add/new/product-order/manage') }}" class="btn btn-primary btn-sm"
+                                style="margin-left: 5px"><b><i class="fas fa-plus"></i> Add Order</b></a>
                         </label>
                         <table class="table table-bordered mb-0 data-table">
                             <thead>
@@ -86,6 +86,8 @@
                                     <th class="text-center">Order Date</th>
                                     <th class="text-center">Code</th>
                                     <th class="text-center">Reference</th>
+                                    {{-- <th class="text-center">Customer Name</th> --}}
+                                    {{-- <th class="text-center">Created By</th> --}}
                                     <th class="text-center">Total</th>
                                     <th class="text-center">Status</th>
                                     <th class="text-center">Action</th>
@@ -113,10 +115,9 @@
         var table = $(".data-table").DataTable({
             processing: true,
             serverSide: true,
-            ajax: "{{ url('view/all/purchase-product/order') }}",
-            order: [[0, 'desc']], // Default order by first column (id) descending
-            columns: [
-                {
+            ajax: "{{ url('view/all/product-order/manage') }}",
+            order: [[0, 'desc']], // Default ordering: ID column (index 0) in descending order
+            columns: [{
                     data: 'id',
                     name: 'id'
                 },
@@ -125,20 +126,12 @@
                 //     name: 'DT_RowIndex'
                 // },
                 {
-                    data: 'date',
-                    name: 'date',
-                    render: function (data) {
-                        return new Date(data).toLocaleDateString('en-GB', {
-                            timeZone: 'Asia/Dhaka',
-                            day: '2-digit',
-                            month: 'short',
-                            year: 'numeric'
-                        });
-                    }
+                    data: 'sale_date',
+                    name: 'sale_date'
                 },
                 {
-                    data: 'code',
-                    name: 'code'
+                    data: 'order_code',
+                    name: 'order_code'
                 },
                 {
                     data: 'reference',
@@ -163,6 +156,8 @@
                     searchable: false
                 }
             ]
+
+
         });
         $(".dataTables_filter").append($("#customFilter"));
     </script>
@@ -177,6 +172,7 @@
         });
 
         $('body').on('click', '.deleteBtn', function() {
+            console.log('Delete button clicked');
             var productProductQuotationSlug = $(this).data("id");
             if (confirm("Are You sure want to delete !")) {
                 if (check_demo_user()) {
@@ -184,7 +180,7 @@
                 }
                 $.ajax({
                     type: "GET",
-                    url: "{{ url('delete/purchase-product/order') }}" + '/' +
+                    url: "{{ url('delete/product-order/manage') }}" + '/' +
                         productProductQuotationSlug,
                     success: function(data) {
                         table.draw(false);

@@ -17,7 +17,7 @@ document.addEventListener('DOMContentLoaded', function () {
     const routes = (window.POS_DESKTOP_CONFIG && window.POS_DESKTOP_CONFIG.routes) || {};
     const LOCAL_SAVE_KEY = 'pos_desktop_saved_order';
 
-    new Vue({
+    window.pos_order_app = new Vue({
         el: '#pos-desktop-app',
         data: function () {
             return {
@@ -108,7 +108,7 @@ document.addEventListener('DOMContentLoaded', function () {
                     outlet_id: '',
                     courier_method: null,
                     courier_method_title: '',
-                    delivery_charge_type: 'inside_city',
+                    delivery_charge_type: '',
                 },
                 useAdvance: false,
                 advanceAmount: 0,
@@ -118,6 +118,8 @@ document.addEventListener('DOMContentLoaded', function () {
                 holdList: [],
                 hasSavedDraft: false,
                 activeTab: 'customer',
+                show_product_search_result: false,
+                is_customer_edit_mode: false,
 
                 // loading states
                 loading: {
@@ -133,7 +135,9 @@ document.addEventListener('DOMContentLoaded', function () {
                 },
                 // target stats (auth user sales target analytics)
                 targetStats: null,
-                order_status: 'invoiced',
+                order_status: 'delivered', // 'quotation', 'invoiced', 'delivered'
+                cash_received: 0,
+                window_width: window.innerWidth,
             };
         },
         computed: {
@@ -163,6 +167,17 @@ document.addEventListener('DOMContentLoaded', function () {
                     const qty = Number(item.qty || 0);
                     return sum + (price * qty);
                 }, 0);
+            },
+            exchange_amount() {
+                let amount = this.cash_received - this.total_cash_payment || 0;
+                if(amount < 0) {
+                    amount = 0;
+                }
+                return amount;
+            },
+            total_cash_payment(){
+                let payemnt = Number(this.paymentMethods.find(p => p.id === String('cash').toLowerCase())?.amount || 0);
+                return payemnt;
             }
         },
         watch: {
@@ -182,7 +197,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 this.selectedWarehouseId = this.warehouses[0].id;
             }
             if (this.$refs && this.$refs.searchInput) {
-                this.$nextTick(() => this.$refs.searchInput.focus());
+                // this.$nextTick(() => this.$refs.searchInput.focus());
             }
             this.loadCategories();
             this.loadPaymentMethods();
@@ -252,7 +267,6 @@ document.addEventListener('DOMContentLoaded', function () {
                 return Promise.resolve(!!window.confirm(title));
             },
             setSelectedCategory(type, id) {
-                console.log('setSelectedCategory', type, id);
                 this.selected_category_type = type;
                 this.selected_category_id = id;
                 this.page = 1;
@@ -360,7 +374,9 @@ document.addEventListener('DOMContentLoaded', function () {
             },
             fetchProducts() {
                 if (!routes.products) return;
-                this.loading.products = true;
+                this.loading.search = true;
+                this.products = {};
+                // this.show_product_search_result = true;
                 this.get(routes.products, {
                     page: this.page,
                     per_page: this.perPage,
@@ -373,8 +389,11 @@ document.addEventListener('DOMContentLoaded', function () {
                     })
                     .catch(() => { })
                     .finally(() => {
-                        this.loading.products = false;
+                        this.loading.search = false;
                     });
+            },
+            hide_product_search_result() {
+                this.show_product_search_result = false;
             },
             clear_value_for_barcode(event) {
                 this.barcodeQuery = '';
@@ -395,9 +414,15 @@ document.addEventListener('DOMContentLoaded', function () {
             }, 300),
             onWarehouseChange() {
                 // Reload products and clear cart when warehouse changes
+                // this.show_product_search_result = false;
                 this.cart = [];
                 this.recalcTotals();
-                this.fetchProducts();
+                const q = (this.searchQuery || '').trim();
+                if (q) {
+                    this.onSearchInput();
+                } else {
+                    this.fetchProducts();
+                }
             },
             onFilterChange() {
                 this.page = 1;
@@ -416,16 +441,22 @@ document.addEventListener('DOMContentLoaded', function () {
                 }
             },
 
+            changeCustomerEditMode(mode=false) {
+                this.is_customer_edit_mode = mode;
+            },
+
             // SEARCH
             onSearchInput: debounce(function () {
                 const q = (this.searchQuery || '').trim();
                 if (!q) {
                     this.showSearchDropdown = false;
                     this.loading.search = false;
+                    this.show_product_search_result = false;
                     return;
                 }
                 if (!routes.search) return;
                 this.loading.search = true;
+                this.show_product_search_result = true;
                 this.get(routes.search, { q: q })
                     .then((r) => {
                         // this.searchResults = r.data && r.data.data ? r.data.data : [];
@@ -503,24 +534,16 @@ document.addEventListener('DOMContentLoaded', function () {
                         title: p.name,
                         image_url: p.image_url,
                         unit_price: p.unit_price || 0,
+                        final_price: p.final_price || 0,
+                        discount_price: p.discount_price || 0,
+                        discount_parcent: p.discount_parcent || 0,
+                        discount: p.discount || null,
                         ...unit_data,
                     };
 
                     this.addCartItem(data);
                     return;
                 }
-                // if (p.has_variants && routes.search) {
-                //     this.loading.search = true;
-                //     this.get(routes.search, { product_id: p.id })
-                //         .then((r) => {
-                //             this.searchResults = r.data && r.data.data ? r.data.data : [];
-                //             this.showSearchDropdown = true;
-                //         })
-                //         .catch(() => {})
-                //         .finally(() => {
-                //             this.loading.search = false;
-                //         });
-                // }
                 this.addCartItem({
                     product_id: p.product_id || p.id,
                     variant_id: null,
@@ -529,6 +552,11 @@ document.addEventListener('DOMContentLoaded', function () {
                     title: p.name,
                     image_url: p.image_url,
                     unit_price: p.unit_price || 0,
+                    main_price: p.main_price || 0,
+                    discount_price: p.discount_price || 0,
+                    discount_parcent: p.discount_parcent || 0,
+                    discount: p.discount || null,
+                    final_price: p.final_price || 0,
                     ...unit_data,
                 });
 
@@ -541,11 +569,28 @@ document.addEventListener('DOMContentLoaded', function () {
                     title: r.title || r.name,
                     image_url: r.image_url,
                     unit_price: r.unit_price || 0,
+                    final_price: r.final_price || 0,
                 });
                 this.closeSearch();
             },
             addCartItem(item) {
                 const hasUnitCode = item.unit_code != null && String(item.unit_code).trim() !== '';
+
+                let discount_info = {
+                    type: 'fixed', 
+                    percent: 0, 
+                    fixed: 0, 
+                    value: 0 
+                }
+                if(item.discount) {
+                    discount_info = {
+                        ...item.discount,
+                        percent: '',
+                        type: 'fixed',
+                    };
+                }
+
+                // return console.log(discount_info, item);
 
                 if (hasUnitCode) {
                     const existing = this.cart.find((ci) => ci.unit_code != null && ci.unit_code === item.unit_code);
@@ -553,13 +598,13 @@ document.addEventListener('DOMContentLoaded', function () {
                         return;
                     }
                     const ci = Object.assign(
+                        item,
                         {
                             temp_id: 'ci-' + Date.now() + Math.random(),
-                            discount: { type: 'percent', percent: 0, fixed: 0, value: 0 },
-                        },
-                        item
+                            discount: discount_info,
+                        }
                     );
-                    ci.final_price = ci.qty * ci.unit_price;
+                    ci.final_price = ci.qty * ci.final_price;
                     this.cart.push(ci);
                 } else {
                     const existing = this.cart.find((ci) => {
@@ -577,13 +622,13 @@ document.addEventListener('DOMContentLoaded', function () {
                         this.recalcItem(existing);
                     } else {
                         const ci = Object.assign(
+                            item,
                             {
                                 temp_id: 'ci-' + Date.now() + Math.random(),
-                                discount: { type: 'percent', percent: 0, fixed: 0, value: 0 },
+                                discount: discount_info,
                             },
-                            item
                         );
-                        ci.final_price = ci.qty * ci.unit_price;
+                        ci.final_price = ci.qty * ci.final_price;
                         this.cart.push(ci);
                     }
                 }
@@ -591,29 +636,29 @@ document.addEventListener('DOMContentLoaded', function () {
             },
             recalcItem(it) {
                 const qty = Number(it.qty || 0);
-                const unitPrice = Number(it.unit_price || 0);
-                const gross = qty * unitPrice;
-                let finalPrice = gross;
+                let unit_price = Number(it.unit_price || 0);
+                let finalPrice = unit_price;
 
                 if (it.discount) {
                     const type = it.discount.type || 'percent';
 
                     if (type === 'percent') {
                         const percent = Number(it.discount.percent || 0);
-                        finalPrice = gross * (1 - percent / 100);
-                        const fixed = gross - finalPrice;
-                        it.discount.fixed = fixed;
+                        finalPrice = Math.round(unit_price * (1 - percent / 100));
+                        const fixed = Math.round(unit_price - finalPrice);
+                        it.discount.fixed = Math.round(fixed);
                         it.discount.value = percent;
                     } else if (type === 'fixed') {
                         const fixed = Number(it.discount.fixed || 0);
-                        finalPrice = gross - fixed;
-                        const percent = gross > 0 ? (fixed / gross) * 100 : 0;
-                        it.discount.percent = percent;
+                        finalPrice = Math.round(unit_price - fixed);
+                        const percent = unit_price > 0 ? (fixed / unit_price) * 100 : 0;
+                        // it.discount.percent = percent;
                         it.discount.value = percent;
                     }
                 }
 
-                it.final_price = finalPrice;
+                it.discount_price = it.unit_price - it.discount.fixed;
+                it.final_price = finalPrice * qty;
                 this.recalcTotals();
             },
 
@@ -630,12 +675,13 @@ document.addEventListener('DOMContentLoaded', function () {
                     it.discount.type = 'percent';
                     const percent = Number(it.discount.percent || 0);
                     const fixed = gross * (percent / 100);
-                    it.discount.fixed = fixed;
+                    it.discount.fixed = Math.round(fixed);
                 } else if (mode === 'fixed') {
                     it.discount.type = 'fixed';
                     const fixed = Number(it.discount.fixed || 0);
-                    const percent = gross > 0 ? (fixed / gross) * 100 : 0;
-                    it.discount.percent = percent;
+                    // const percent = gross > 0 ? (fixed / gross) * 100 : 0;
+                    // it.discount.percent = percent;
+                    it.discount.percent = '';
                 }
 
                 this.recalcItem(it);
@@ -1422,10 +1468,16 @@ document.addEventListener('DOMContentLoaded', function () {
 
                 return total;
             },
-            setDeliveryChargeByType(is_recalc = 1) {
+            setDeliveryChargeByType(is_recalc = 1, update_delivery_charge=false) {
                 const type = this.delivery_info.delivery_charge_type;
-                const weights = this.cart.map(item => (item.weight || .5) * item.qty);
-                this.delivery_charge = this.getSteadfastDeliveryCharge(type === 'inside_city', weights);
+                if(!type) {
+                    this.delivery_charge = 0;
+                    return;
+                }
+                if(update_delivery_charge) {
+                    const weights = this.cart.map(item => (item.weight || .5) * item.qty);
+                    this.delivery_charge = this.getSteadfastDeliveryCharge(type === 'inside_city', weights);
+                }
                 if(is_recalc != 'no_recalc') {
                     this.recalcTotals();
                 }
